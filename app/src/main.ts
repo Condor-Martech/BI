@@ -33,7 +33,9 @@ async function bootstrap() {
       dsn: process.env.SENTRY_DSN,
       tracesSampleRate: 1.0,
     });
-    DocConfig(app);
+    if (process.env.NODE_ENV !== 'production') {
+      DocConfig(app);
+    }
     useContainer(app.select(AppModule), { fallbackOnErrors: true });
     await app.init()
   }

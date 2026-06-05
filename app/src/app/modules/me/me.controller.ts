@@ -40,6 +40,21 @@ export class MeController {
     return this.meService.getSidebar(req.user as UserDocument);
   }
 
+  @Get('overview')
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Resumo do dashboard do usuário autenticado',
+    description:
+      'Contadores para o dashboard: relatórios atribuídos e workspaces acessíveis. USER conta apenas os permitidos (diretos ∪ grupo); MANAGER/ADMIN contam todos.',
+  })
+  @ApiOkResponse({ description: 'Contadores do dashboard do usuário.' })
+  @ApiCommonResponses()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(ROLE_TYPES.MANAGER, ROLE_TYPES.ADMIN, ROLE_TYPES.USER)
+  async getOverview(@Req() req: Request) {
+    return this.meService.getOverview(req.user as UserDocument);
+  }
+
   @Get('reports')
   @ApiBearerAuth()
   @ApiOperation({

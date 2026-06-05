@@ -29,7 +29,7 @@ import {
   type UserListItem,
 } from "@/lib/api/endpoints/users";
 import { useAccounts } from "@/lib/hooks/accounts";
-import { useCreateUser, useUpdateUser } from "@/lib/hooks/users";
+import { useChangeUserAccount, useCreateUser, useUpdateUser } from "@/lib/hooks/users";
 
 interface Props {
   open: boolean;
@@ -44,19 +44,28 @@ const ROLE_LABELS: Record<Role, string> = {
   user: "User — apenas leitura de relatórios",
 };
 
+/** Primeira conta BI vinculada ao usuário (o modelo é multi-conta, mas tratamos como uma só). */
+function currentAccountId(user?: UserListItem): string {
+  const first = user?.accountID?.[0];
+  if (!first) return "";
+  return typeof first === "string" ? first : (first._id ?? "");
+}
+
 export function UserFormDialog({ open, onOpenChange, user }: Props) {
   const isEdit = Boolean(user);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [role, setRole] = useState<Role>("user");
-  const [accountUser, setAccountUser] = useState("");
+  const [accountId, setAccountId] = useState("");
   const [userIslv, setUserIslv] = useState("");
 
   const create = useCreateUser();
   const update = useUpdateUser();
-  const isPending = create.isPending || update.isPending;
+  const changeAccount = useChangeUserAccount();
+  const isPending = create.isPending || update.isPending || changeAccount.isPending;
 
-  const needsAccount = !isEdit && role === "user";
+  // A conta BI aplica-se à função "user", tanto na criação quanto na edição.
+  const needsAccount = role === "user";
   const accountsQuery = useAccounts();
   const accounts = accountsQuery.data ?? [];
 
@@ -65,34 +74,39 @@ export function UserFormDialog({ open, onOpenChange, user }: Props) {
       setName(user?.name ?? "");
       setEmail(user?.email ?? "");
       setRole(((user?.role as Role) ?? "user") as Role);
-      setAccountUser("");
+      setAccountId(currentAccountId(user));
       setUserIslv(user?.userIslv ?? "");
     }
   }, [open, user]);
 
-  function onSubmit(e: React.FormEvent) {
+  async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
 
     if (isEdit && user?._id) {
       const body: UpdateUserBody = { name, email, role, userIslv: userIslv || undefined };
-      update.mutate(
-        { id: user._id, body },
-        {
-          onSuccess: () => {
-            toast.success("Usuário atualizado.");
-            onOpenChange(false);
-          },
-          onError: (err) => toast.error((err as Error).message ?? "Erro ao atualizar."),
-        },
-      );
+      // A troca de conta é um endpoint à parte (sincroniza os dois lados da relação).
+      const accountChanged =
+        role === "user" && Boolean(accountId) && accountId !== currentAccountId(user);
+      try {
+        await update.mutateAsync({ id: user._id, body });
+        if (accountChanged) {
+          await changeAccount.mutateAsync({ userId: user._id, accountId });
+        }
+        toast.success("Usuário atualizado.");
+        onOpenChange(false);
+      } catch (err) {
+        toast.error((err as Error).message ?? "Erro ao atualizar.");
+      }
       return;
     }
 
+    // Criação: o backend vincula a conta pelo email (campo accountUser).
+    const selectedAccount = accounts.find((a) => a._id === accountId);
     const body: CreateUserBody = {
       name,
       email,
       role,
-      ...(role === "user" && accountUser ? { accountUser } : {}),
+      ...(role === "user" && selectedAccount ? { accountUser: selectedAccount.email } : {}),
       ...(userIslv ? { userIslv } : {}),
     };
     create.mutate(body, {
@@ -150,8 +164,8 @@ export function UserFormDialog({ open, onOpenChange, user }: Props) {
             <div className="space-y-1.5">
               <Label htmlFor="accountUser">Conta BI</Label>
               <Select
-                value={accountUser}
-                onValueChange={setAccountUser}
+                value={accountId}
+                onValueChange={setAccountId}
                 disabled={accountsQuery.isLoading || accountsQuery.isError}
                 required
               >
@@ -170,7 +184,7 @@ export function UserFormDialog({ open, onOpenChange, user }: Props) {
                 </SelectTrigger>
                 <SelectContent>
                   {accounts.map((a) => (
-                    <SelectItem key={a._id} value={a.email}>
+                    <SelectItem key={a._id} value={a._id}>
                       {a.nameAccount}
                       <span className="ml-2 text-xs text-muted-foreground">{a.email}</span>
                     </SelectItem>
@@ -178,7 +192,9 @@ export function UserFormDialog({ open, onOpenChange, user }: Props) {
                 </SelectContent>
               </Select>
               <p className="text-xs text-muted-foreground">
-                Obrigatório para a função &quot;user&quot;. Vincula o usuário a uma conta Power BI.
+                {isEdit
+                  ? "Trocar a conta move o usuário: ele sai da conta atual e passa para a selecionada."
+                  : 'Obrigatório para a função "user". Vincula o usuário a uma conta Power BI.'}
               </p>
             </div>
           )}

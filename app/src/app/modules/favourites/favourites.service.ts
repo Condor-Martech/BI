@@ -1,4 +1,4 @@
-import { BadRequestException, HttpException, Injectable, InternalServerErrorException, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, HttpException, Injectable, InternalServerErrorException, Logger, NotFoundException } from '@nestjs/common';
 import { Favourite, FavouriteDocument } from './favourite.entity';
 import { UpdateFavouriteDto } from './dto/update-favourite.dto';
 import { CreateFavouriteDto } from './dto/create-favourite.dto';
@@ -11,6 +11,8 @@ import { EventsService } from '../events/events.service';
 
 @Injectable()
 export class FavouritesService {
+  private readonly logger = new Logger(FavouritesService.name);
+
   constructor(
     @InjectModel(Favourite.name) private favouriteModel: Model<FavouriteDocument>,
     private readonly userService: UsersService,
@@ -37,6 +39,11 @@ export class FavouritesService {
       if (error instanceof HttpException) {
         throw error;
       }
+      // E11000: o índice unique (userID + reportIdPB) já tem esse favorito.
+      if (error?.code === 11000) {
+        throw new ConflictException('Relatório já está nos favoritos deste usuário.');
+      }
+      this.logger.error(`Falha ao criar favorito (user=${userID}, report=${createFavouriteDto.reportIdPB}): ${error.message}`, error.stack);
       throw new InternalServerErrorException(error.message);
     }
   }

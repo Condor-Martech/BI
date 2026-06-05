@@ -7,6 +7,7 @@ import { OpenAiService } from './services/openai.service';
 import { PowerBiQueryService } from './services/power-bi-query.service';
 import { DaxGuard } from './services/dax-guard.service';
 import { ReportAnalysis, ReportAnalysisSchema } from './report-analysis.entity';
+import { AnalysisConversation, AnalysisConversationSchema } from './analysis-conversation.entity';
 import { Report, ReportSchema } from '../reports/report.entity';
 
 /**
@@ -24,6 +25,7 @@ import { Report, ReportSchema } from '../reports/report.entity';
     HttpModule,
     MongooseModule.forFeature([
       { name: ReportAnalysis.name, schema: ReportAnalysisSchema },
+      { name: AnalysisConversation.name, schema: AnalysisConversationSchema },
       { name: Report.name, schema: ReportSchema },
     ]),
   ],

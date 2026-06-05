@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { Star } from "lucide-react";
+import { FileBarChart2, LayoutGrid, Star } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -9,6 +9,12 @@ import { roleLabel } from "@/lib/auth/roles";
 import { requireSession } from "@/lib/auth/session";
 
 import { FavoriteCard } from "./_components/favorite-card";
+import { StatCard } from "./_components/stat-card";
+
+interface Overview {
+  assignedReports: number;
+  workspaces: number;
+}
 
 interface FavoriteWithReport {
   _id?: string;
@@ -28,9 +34,13 @@ export default async function Home() {
   const session = await requireSession();
   const username = session.payload.email?.split("@")[0] ?? "Usuário";
 
+  let overview: Overview;
   let favorites: FavoriteWithReport[];
   try {
-    favorites = await apiServer<FavoriteWithReport[]>("/favourites/me");
+    [overview, favorites] = await Promise.all([
+      apiServer<Overview>("/me/overview"),
+      apiServer<FavoriteWithReport[]>("/favourites/me"),
+    ]);
   } catch (err) {
     if (err instanceof ApiAuthError) redirect("/login");
     throw err;
@@ -46,6 +56,20 @@ export default async function Home() {
           Plataforma BI · {roleLabel(session.payload.role)}
         </p>
       </header>
+
+      <section className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <StatCard
+          icon={<FileBarChart2 className="h-6 w-6" />}
+          label="Relatórios atribuídos"
+          value={overview.assignedReports}
+          hint={`em ${overview.workspaces} workspace${overview.workspaces === 1 ? "" : "s"}`}
+        />
+        <StatCard
+          icon={<LayoutGrid className="h-6 w-6" />}
+          label="Workspaces acessíveis"
+          value={overview.workspaces}
+        />
+      </section>
 
       <section className="space-y-3">
         <div className="flex items-center justify-between">

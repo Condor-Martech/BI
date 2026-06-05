@@ -1,6 +1,6 @@
 {
   "name": "legacy-web-next",
-  "version": "0.1.0",
+  "version": "2.0.0-beta.1",
   "private": true,
   "description": "Frontend Next.js 16 para el backend legacy NestJS (new-bi/legacy/app). Independiente del Turborepo de new-bi.",
   "scripts": {
@@ -28,7 +28,10 @@
     "react": "19.2.4",
     "react-dom": "19.2.4",
     "react-hook-form": "^7.76.1",
+    "react-markdown": "^10.1.0",
     "react-resizable-panels": "^4.11.2",
+    "recharts": "^3.8.1",
+    "remark-gfm": "^4.0.1",
     "shadcn": "^4.8.0",
     "sonner": "^2.0.7",
     "tailwind-merge": "^2.6.0",

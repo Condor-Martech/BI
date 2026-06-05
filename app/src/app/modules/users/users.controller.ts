@@ -9,6 +9,7 @@ import { ReportsService } from '../reports/reports.service';
 import { JwtAuthGuard } from '../../core/auth/auth.guard';
 import { RolesGuard } from '../../core/auth/roles.guard';
 import { ChangePasswordDto } from './dto/change-password.dto';
+import { ChangeUserAccountDto } from './dto/change-user-account.dto';
 import { SetPasswordDto } from './dto/set-password.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { LoginUserDto } from './dto/login-user.dto';
@@ -196,6 +197,22 @@ export class UsersController {
   async updateUserGroup(@Param('userId') userId: string, @Param('groupId') groupId: string) {
     const update = await this.usersService.addUserToGroup(userId, groupId);
     return update;
+  }
+
+  @Patch(':id/account')
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Trocar a conta BI de um usuário',
+    description: 'Remove o usuário de suas contas BI atuais e o vincula à conta informada, mantendo os dois lados da relação em sincronia. Restrito a MANAGER.',
+  })
+  @ApiParam({ name: 'id', description: 'ID MongoDB do usuário', example: '6685a57d6dddeaa56c4a5f15' })
+  @ApiOkResponse({ description: 'Conta BI do usuário trocada com sucesso. Retorna o perfil atualizado.' })
+  @ApiNotFound('Usuário ou conta BI não encontrado.')
+  @ApiCommonResponses()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(ROLE_TYPES.MANAGER)
+  async changeAccount(@Param('id') id: string, @Body() dto: ChangeUserAccountDto) {
+    return this.usersService.changeUserAccount(id, dto.accountId);
   }
 
   @Patch('update/:id')

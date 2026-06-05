@@ -7,6 +7,7 @@ import { AnimatePresence, motion } from "motion/react";
 import { Building2, ChevronRight, FileBarChart2 } from "lucide-react";
 
 import { Skeleton } from "@/components/ui/skeleton";
+import type { MeSidebarWorkspace } from "@/lib/api/endpoints/me-sidebar";
 import { useMeSidebar } from "@/lib/hooks/me-sidebar";
 import { durations, easings } from "@/lib/motion/transitions";
 import { cn } from "@/lib/utils";
@@ -19,13 +20,35 @@ function toSentenceCase(value: string): string {
   return trimmed.charAt(0).toUpperCase() + trimmed.slice(1).toLowerCase();
 }
 
+function WorkspaceLink({ ws }: { ws: MeSidebarWorkspace }) {
+  const pathname = usePathname();
+  const href = `/workspaces/${encodeURIComponent(ws.pbWorkspaceId)}?name=${encodeURIComponent(ws.name)}`;
+  const active = pathname === `/workspaces/${ws.pbWorkspaceId}`;
+  return (
+    <li>
+      <Link
+        href={href}
+        aria-current={active ? "page" : undefined}
+        className={cn(
+          "flex h-7 items-center gap-2 rounded-md px-2 text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+          active
+            ? "bg-sidebar-accent text-sidebar-accent-foreground"
+            : "text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
+        )}
+      >
+        <FileBarChart2 className="h-3 w-3 shrink-0" />
+        <span className="truncate">{toSentenceCase(ws.name)}</span>
+      </Link>
+    </li>
+  );
+}
+
 interface Props {
   collapsed: boolean;
   defaultOpenAccountIds: string[];
 }
 
 export function SidebarAccountsSection({ collapsed, defaultOpenAccountIds }: Props) {
-  const pathname = usePathname();
   const { data, isLoading } = useMeSidebar();
   const [open, setOpen] = useState<Set<string>>(() => new Set(defaultOpenAccountIds));
 
@@ -41,10 +64,14 @@ export function SidebarAccountsSection({ collapsed, defaultOpenAccountIds }: Pro
     });
   }
 
+  // USER recibe una única "cuenta" sintética con los workspaces ya deduplicados:
+  // lo mostramos plano, sin el acordeón de cuenta (que solo aporta a privilegiados).
+  const flat = !!data && data.length === 1;
+
   return (
-    <div className="space-y-1 p-2" aria-label="Minhas contas">
+    <div className="space-y-1 p-2" aria-label="Meus workspaces">
       <p className="px-2 text-[10px] uppercase tracking-wider text-sidebar-foreground/60">
-        Minhas contas
+        {flat ? "Meus workspaces" : "Minhas contas"}
       </p>
 
       {isLoading ? (
@@ -54,7 +81,15 @@ export function SidebarAccountsSection({ collapsed, defaultOpenAccountIds }: Pro
           <Skeleton className="h-7 w-full" />
         </div>
       ) : !data || data.length === 0 ? (
-        <p className="px-2 text-xs text-sidebar-foreground/60">Nenhuma conta disponível</p>
+        <p className="px-2 text-xs text-sidebar-foreground/60">Nenhum workspace disponível</p>
+      ) : flat ? (
+        <ul className="space-y-0.5" aria-label="Workspaces">
+          {data[0]!.workspaces.length === 0 ? (
+            <li className="px-2 py-1 text-xs text-sidebar-foreground/50">Nenhum workspace</li>
+          ) : (
+            data[0]!.workspaces.map((ws) => <WorkspaceLink key={ws.id} ws={ws} />)
+          )}
+        </ul>
       ) : (
         <ul className="space-y-0.5">
           {data.map((account) => {
@@ -93,27 +128,7 @@ export function SidebarAccountsSection({ collapsed, defaultOpenAccountIds }: Pro
                             Nenhum workspace
                           </li>
                         ) : (
-                          account.workspaces.map((ws) => {
-                            const href = `/workspaces/${encodeURIComponent(ws.pbWorkspaceId)}?name=${encodeURIComponent(ws.name)}`;
-                            const active = pathname === `/workspaces/${ws.pbWorkspaceId}`;
-                            return (
-                              <li key={ws.id}>
-                                <Link
-                                  href={href}
-                                  aria-current={active ? "page" : undefined}
-                                  className={cn(
-                                    "flex h-7 items-center gap-2 rounded-md px-2 text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                                    active
-                                      ? "bg-sidebar-accent text-sidebar-accent-foreground"
-                                      : "text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
-                                  )}
-                                >
-                                  <FileBarChart2 className="h-3 w-3 shrink-0" />
-                                  <span className="truncate">{toSentenceCase(ws.name)}</span>
-                                </Link>
-                              </li>
-                            );
-                          })
+                          account.workspaces.map((ws) => <WorkspaceLink key={ws.id} ws={ws} />)
                         )}
                       </ul>
                     </motion.div>

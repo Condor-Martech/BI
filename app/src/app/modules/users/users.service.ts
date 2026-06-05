@@ -221,7 +221,16 @@ export class UsersService {
       if (query.lastLoginTo) filter.lastLogin.$lte = new Date(query.lastLoginTo);
     }
 
-    return this.userModel.find(filter).exec();
+    // Lista MANAGER: só os campos que a tabela/edição usam (name, email, role,
+    // userIslv, lastLogin, accountID) + _id implícito. Exclui password (leak) e
+    // arrays pesados não usados (reportsByPB, groupByPB, userGroups, filterId).
+    // accountID é populado apenas com nameAccount + email para a coluna "E-mail
+    // da conta" (sem token, que é sensível).
+    return this.userModel
+      .find(filter)
+      .select('name email role userIslv lastLogin accountID')
+      .populate({ path: 'accountID', select: 'nameAccount email', model: this.accountModel })
+      .exec();
   };
   async findOne(id: string): Promise<any> {
     try {
@@ -416,6 +425,34 @@ export class UsersService {
       throw new NotFoundException(`Usuário com ID ${id} não encontrado`);
     }
     return updated;
+  };
+  // Troca a conta BI do usuário: remove de todas as contas atuais e vincula à
+  // conta de destino, mantendo os dois lados da relação (user.accountID e
+  // account.users) em sincronia. Reaproveita removeUserFromAccount + incluedAccountID.
+  async changeUserAccount(userId: string, accountId: string): Promise<User> {
+    const user = await this.userModel.findById(userId).select('accountID');
+    if (!user) {
+      throw new NotFoundException(`Usuário com ID ${userId} não encontrado`);
+    }
+
+    // accountID pode vir como ObjectId ou documento populado — normaliza para string.
+    const current = (user.accountID ?? []).map((a: any) => String(a?._id ?? a));
+    const target = String(accountId);
+    const alreadyLinked = current.includes(target);
+
+    // Remove de todas as contas atuais que não sejam a de destino.
+    for (const accId of current) {
+      if (accId === target) continue;
+      await this.accountService.removeUserFromAccount(accId, userId);
+    }
+
+    // Vincula à conta de destino (valida USER_LIMIT e sincroniza os dois lados).
+    // Se já estava vinculado, não revalida o limite — apenas mantém o vínculo.
+    if (!alreadyLinked) {
+      await this.incluedAccountID(userId, target);
+    }
+
+    return this.findOne(userId);
   };
   async updateUserReports(userId: string, reportIds: string[], groupIds: string[]): Promise<User> {
     try {

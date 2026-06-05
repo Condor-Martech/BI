@@ -16,4 +16,9 @@ export class UpdateUserGroupDto {
   @IsArray()
   @IsOptional()
   reports?: string[];
+
+  @ApiPropertyOptional({ description: 'Lista completa de IDs de usuários membros do grupo (substitui a anterior)', type: [String], example: ['6685a57d6dddeaa56c4a5f15'] })
+  @IsArray()
+  @IsOptional()
+  usersIds?: string[];
 }

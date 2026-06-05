@@ -4,6 +4,7 @@ import * as React from "react";
 import {
   type ColumnDef,
   type ColumnFiltersState,
+  type RowData,
   type RowSelectionState,
   type SortingState,
   type VisibilityState,
@@ -14,6 +15,16 @@ import {
   getSortedRowModel,
   useReactTable,
 } from "@tanstack/react-table";
+
+declare module "@tanstack/react-table" {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  interface ColumnMeta<TData extends RowData, TValue> {
+    /** Classes extra aplicadas ao <td> e ao <th> da coluna (ex.: sticky, truncate). */
+    className?: string;
+    /** Classes aplicadas só ao <th> (cabeçalho) da coluna. */
+    headerClassName?: string;
+  }
+}
 import { ArrowDown, ArrowUp, ArrowUpDown } from "lucide-react";
 
 import { cn } from "@/lib/utils";
@@ -152,6 +163,8 @@ export function DataTable<TData, TValue>({
                       className={cn(
                         cellPadding,
                         "text-muted-foreground text-xs font-medium",
+                        header.column.columnDef.meta?.className,
+                        header.column.columnDef.meta?.headerClassName,
                       )}
                     >
                       {header.isPlaceholder ? null : canSort ? (
@@ -212,6 +225,7 @@ export function DataTable<TData, TValue>({
                   data-state={row.getIsSelected() ? "selected" : undefined}
                   onClick={onRowClick ? () => onRowClick(row.original) : undefined}
                   className={cn(
+                    "group",
                     rowHeight,
                     onRowClick && "cursor-pointer",
                   )}
@@ -219,7 +233,11 @@ export function DataTable<TData, TValue>({
                   {row.getVisibleCells().map((cell) => (
                     <TableCell
                       key={cell.id}
-                      className={cn(cellPadding, "text-xs")}
+                      className={cn(
+                        cellPadding,
+                        "text-xs",
+                        cell.column.columnDef.meta?.className,
+                      )}
                     >
                       {flexRender(cell.column.columnDef.cell, cell.getContext())}
                     </TableCell>

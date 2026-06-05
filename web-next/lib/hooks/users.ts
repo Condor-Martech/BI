@@ -71,6 +71,23 @@ export function useChangePassword() {
 }
 
 /**
+ * PATCH /api/users/:userId/account — MANAGER only.
+ * Move o usuário para a conta BI informada: o backend remove das contas atuais
+ * e vincula à de destino, sincronizando os dois lados da relação.
+ */
+export function useChangeUserAccount() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ userId, accountId }: { userId: string; accountId: string }) =>
+      apiClient(`/api/users/${encodeURIComponent(userId)}/account`, {
+        method: "PATCH",
+        body: { accountId },
+      }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: usersKeys.all }),
+  });
+}
+
+/**
  * PATCH /api/users/:userId/reports — MANAGER only.
  * Body: `{ reportIdPB: string[] }`. Backend derives `groupIdPB` from the reports automatically.
  */

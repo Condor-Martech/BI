@@ -110,6 +110,14 @@ export default async function ConfiguracaoPage() {
           </Link>
         ))}
       </div>
+
+      <footer className="mt-8 flex items-center justify-center gap-2 border-t border-border pt-4 text-xs text-muted-foreground">
+        <span>Plataforma BI</span>
+        <span aria-hidden>·</span>
+        <span>
+          versão {process.env.NEXT_PUBLIC_APP_VERSION ?? "—"}
+        </span>
+      </footer>
     </div>
   );
 }

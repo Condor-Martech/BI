@@ -29,3 +29,7 @@ FavouriteSchema.virtual('report', {
 
 FavouriteSchema.set('toObject', { virtuals: true });
 FavouriteSchema.set('toJSON', { virtuals: true });
+
+// Um usuário não pode favoritar o mesmo relatório duas vezes.
+// `order` NÃO é unique (era um índice órfão `order_1` global que causava E11000).
+FavouriteSchema.index({ userID: 1, reportIdPB: 1 }, { unique: true });

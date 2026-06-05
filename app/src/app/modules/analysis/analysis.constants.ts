@@ -44,6 +44,16 @@ export function estimateCostUsd(model: string, promptTokens: number, completionT
  */
 export const ANALYSIS_CACHE = {
   latestReport: (reportIdPB: string): string => `analysis:report:${reportIdPB}`,
+  /** Digest do schema do dataset — caro de descobrir (3 INFO queries), cacheado por relatório. */
+  schema: (reportIdPB: string): string => `analysis:schema:${reportIdPB}`,
+};
+
+/** Limites do contrato de gráficos emitido pelo LLM (sanitizados no backend). */
+export const CHART_LIMITS = {
+  MAX_CHARTS: 4,
+  MAX_DATA_POINTS: 100,
+  MAX_SERIES: 5,
+  ALLOWED_TYPES: ['bar', 'line', 'area', 'pie'] as const,
 };
 
 /** Schema da única tool exposta ao OpenAI no loop agéntico. */
@@ -106,5 +116,60 @@ export function buildFinalUserPrompt(language: string): string {
     '"anomalies" (array de strings, 0-4 anomalias/alertas ou vazio se não houver), ' +
     '"recommendations" (array de strings, 2-4 sugestões acionáveis). ' +
     'Escreva todos os valores em português do Brasil. Responda APENAS com o objeto JSON.'
+  );
+}
+
+// ----- Chat conversacional -----
+
+/**
+ * System prompt do modo chat. Mesmo agente analista, mas conversacional: mantém
+ * o contexto dos turnos anteriores e pode emitir gráficos quando ajudam a resposta.
+ */
+export function buildChatSystemPrompt(language: string, reportName?: string, focus?: string): string {
+  const lang = language === 'en-US' ? 'English (en-US)' : 'Brazilian Portuguese (pt-BR)';
+  const lines = [
+    'You are a senior data analyst having a conversation with a user about a Microsoft Power BI report' +
+      (reportName ? ` named "${reportName}".` : '.'),
+    'You have one tool: `run_dax_query` — use it to fetch REAL numbers from the dataset before answering.',
+    'Maintain the conversation context: the user may ask follow-up questions that refer to previous turns.',
+    'Strategy per turn: (1) decide if you need fresh data; (2) if so, request focused DAX queries that ' +
+      'aggregate (SUMMARIZECOLUMNS, SUMMARIZE) or rank (TOPN) — never dump raw tables; (3) then answer.',
+    `Hard limit: at most ${ANALYSIS_LIMITS.MAX_TOOL_ITERATIONS} tool-calling rounds per turn.`,
+    `Always answer in ${lang}. Be specific, cite real numbers, avoid generalities.`,
+  ];
+  if (focus) lines.push(`User focus for this conversation: ${focus}`);
+  return lines.join('\n');
+}
+
+/**
+ * Instrução do pase final do chat: força saída JSON com a resposta conversacional
+ * e, opcionalmente, specs de gráfico (generative UI). O LLM embute os DADOS no
+ * próprio gráfico — o frontend não precisa re-casar com as queries.
+ */
+export function buildChatFinalPrompt(language: string): string {
+  const isEn = language === 'en-US';
+  const chartSpec =
+    'Each chart: { "title": string, "type": "bar"|"line"|"area"|"pie", ' +
+    '"data": array of objects (each object is one data point, e.g. {"mes":"Jan","vendas":1200}), ' +
+    '"xKey": string (the category/label field name present in every data object), ' +
+    '"series": array of { "key": string (a numeric field name in data), "label"?: string } }. ' +
+    `At most ${CHART_LIMITS.MAX_CHARTS} charts, ${CHART_LIMITS.MAX_DATA_POINTS} data points each, ` +
+    `${CHART_LIMITS.MAX_SERIES} series each. Only include charts when a visualization genuinely helps; ` +
+    'omit "charts" (or use []) otherwise. Use ONLY real values you obtained from run_dax_query.';
+  if (isEn) {
+    return (
+      'Now produce your reply as a JSON object with these keys: ' +
+      '"reply" (string — your conversational answer to the user, in English; light markdown is fine), ' +
+      '"charts" (optional array of chart specs). ' +
+      chartSpec +
+      ' Respond ONLY with the JSON object.'
+    );
+  }
+  return (
+    'Agora produza sua resposta como um objeto JSON com estas chaves: ' +
+    '"reply" (string — sua resposta conversacional ao usuário, em português do Brasil; markdown leve é ok), ' +
+    '"charts" (array opcional de specs de gráfico). ' +
+    chartSpec +
+    ' Responda APENAS com o objeto JSON.'
   );
 }
