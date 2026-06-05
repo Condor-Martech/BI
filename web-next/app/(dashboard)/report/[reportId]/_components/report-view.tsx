@@ -20,7 +20,13 @@ import { AnalysisPanel } from "./analysis-panel";
  * dashboard sidebar. Collapsing only changes the embed's width — the iframe is
  * never re-mounted, so its live token/state survive.
  */
-export function ReportView({ detail }: { detail: ReportDetail }) {
+export function ReportView({
+  detail,
+  chatIaEnabled,
+}: {
+  detail: ReportDetail;
+  chatIaEnabled: boolean;
+}) {
   const [collapsed, setCollapsed] = useState(true);
 
   const accountName = detail.accountID.nameAccount ?? detail.accountID.email ?? "Cuenta";
@@ -61,7 +67,11 @@ export function ReportView({ detail }: { detail: ReportDetail }) {
       </header>
 
       <div className="flex flex-1 overflow-hidden bg-muted/30">
-        {collapsed ? (
+        {!chatIaEnabled ? (
+          <div className="min-w-0 flex-1 p-6">
+            <PowerBIReport reportId={detail.reportIdPB} initialData={detail} />
+          </div>
+        ) : collapsed ? (
           <>
             <div className="min-w-0 flex-1 p-6">
               <PowerBIReport reportId={detail.reportIdPB} initialData={detail} />

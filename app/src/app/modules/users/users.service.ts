@@ -222,13 +222,15 @@ export class UsersService {
     }
 
     // Lista MANAGER: só os campos que a tabela/edição usam (name, email, role,
-    // userIslv, lastLogin, accountID) + _id implícito. Exclui password (leak) e
-    // arrays pesados não usados (reportsByPB, groupByPB, userGroups, filterId).
-    // accountID é populado apenas com nameAccount + email para a coluna "E-mail
-    // da conta" (sem token, que é sensível).
+    // userIslv, lastLogin, accountID, chatIaEnabled) + _id implícito. Exclui
+    // password (leak) e arrays pesados não usados (reportsByPB, groupByPB,
+    // userGroups, filterId). accountID é populado apenas com nameAccount + email
+    // para a coluna "E-mail da conta" (sem token, que é sensível).
+    // chatIaEnabled é necessário para o checkbox do formulário de edição refletir
+    // o valor salvo (sem ele, o checkbox sempre abria desmarcado).
     return this.userModel
       .find(filter)
-      .select('name email role userIslv lastLogin accountID')
+      .select('name email role userIslv lastLogin accountID chatIaEnabled')
       .populate({ path: 'accountID', select: 'nameAccount email', model: this.accountModel })
       .exec();
   };
@@ -265,6 +267,8 @@ export class UsersService {
         name: result.name,
         role: result.role,
         email: result.email,
+        // Necessário para o front gatear o sidebar de Análise com IA (GET /users = "me").
+        chatIaEnabled: result.chatIaEnabled ?? false,
         accountID: result.accountID && result.accountID.length > 0 ? result.accountID.map(a => ({
           id: a._id,
           nameAccount: a.nameAccount,

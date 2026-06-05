@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsEmail, IsNotEmpty, IsEnum, IsOptional, IsString, IsArray } from 'class-validator';
+import { IsEmail, IsNotEmpty, IsEnum, IsOptional, IsString, IsArray, IsBoolean } from 'class-validator';
 import { AccountRelatedResponseDto } from '../../accounts/dto/create-account.dto';
 import { ReportRelatedResponseDto } from '../../reports/dto/create-report.dto';
 
@@ -48,6 +48,11 @@ export class CreateUserDto {
     @IsArray()
     @IsOptional()
     reportIdPB?: string[];
+
+    @ApiPropertyOptional({ description: 'Habilita o módulo de Análise com IA para o usuário (padrão: false)', example: false })
+    @IsOptional()
+    @IsBoolean()
+    chatIaEnabled?: boolean;
 }
 
 export class UserResponseDto {
@@ -140,5 +145,10 @@ export class UserResponseWithPopulateDto {
     @IsArray()
     @IsOptional()
     report?: ReportRelatedResponseDto[];
+
+    @ApiPropertyOptional({ description: 'Módulo de Análise com IA habilitado para o usuário', example: false })
+    @IsBoolean()
+    @IsOptional()
+    chatIaEnabled?: boolean;
 
 }

@@ -66,7 +66,22 @@
       "Bash(rg -rn \"useToggleFavourite|nextOrder|mutate\" --type tsx --type ts -g '!lib/hooks/favourites.ts')",
       "Bash(sd --help)",
       "Bash(node -e \"const p=require\\('./package.json'\\); console.log\\(JSON.stringify\\(p.scripts,null,1\\)\\)\")",
-      "Bash(npx ts-node *)"
+      "Bash(npx ts-node *)",
+      "Bash(grep -E '\\\\.\\(ts|js\\)$')",
+      "Bash(grep -E '\\\\.\\(tsx|ts\\)$')",
+      "Bash(rg -rln \"decodeJwt|JwtPayload|useUser|currentUser|bi_token\" web-next/lib web-next/hooks web-next/app)",
+      "Bash(fd -e ts . src -x rg -l \"jwtService.sign|JwtService|\\\\.sign\\\\\\(\" {})",
+      "Bash(xargs ls -la)",
+      "Bash(eza lib/api/endpoints/)",
+      "Bash(bat --plain app/api/auth/me/route.ts)",
+      "Bash(bat --plain lib/hooks/users.ts)",
+      "Bash(rg -rn \"analysis/all|/all\" lib/api/endpoints/analysis.ts)",
+      "Bash(npm list *)",
+      "Bash(git -C /Users/editor2/project/2026/new-bi/legacy/app log --all --oneline)",
+      "Bash(bat --plain src/app/modules/users/dto/update-user.dto.ts)",
+      "Bash(bat --plain web-next/lib/api/proxy.ts)",
+      "Bash(fd . web-next/app/api/users -e ts -x bat --plain {})",
+      "Bash(pnpm -C /Users/editor2/project/2026/new-bi/legacy/web-next typecheck)"
     ],
     "additionalDirectories": [
       "/Users/editor2/project/2026/new-bi/legacy/web-next/app/(dashboard)/report/[reportId]/_components"

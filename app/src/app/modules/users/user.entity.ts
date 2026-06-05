@@ -49,6 +49,11 @@ export class User {
     @Prop({ type: Date, index: true })
     lastLogin?: Date;
 
+    // Habilita o módulo de Análise com IA (sidebar de analítica no front + endpoints /analysis).
+    // Padrão false: o recurso fica oculto/bloqueado até um admin ativá-lo explicitamente.
+    @Prop({ default: false })
+    chatIaEnabled?: boolean;
+
 
     constructor(user?: Partial<User>) {
         this.name = user?.name;

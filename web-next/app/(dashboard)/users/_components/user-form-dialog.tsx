@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
   DialogContent,
@@ -58,6 +59,7 @@ export function UserFormDialog({ open, onOpenChange, user }: Props) {
   const [role, setRole] = useState<Role>("user");
   const [accountId, setAccountId] = useState("");
   const [userIslv, setUserIslv] = useState("");
+  const [chatIaEnabled, setChatIaEnabled] = useState(false);
 
   const create = useCreateUser();
   const update = useUpdateUser();
@@ -76,6 +78,7 @@ export function UserFormDialog({ open, onOpenChange, user }: Props) {
       setRole(((user?.role as Role) ?? "user") as Role);
       setAccountId(currentAccountId(user));
       setUserIslv(user?.userIslv ?? "");
+      setChatIaEnabled(user?.chatIaEnabled ?? false);
     }
   }, [open, user]);
 
@@ -83,7 +86,7 @@ export function UserFormDialog({ open, onOpenChange, user }: Props) {
     e.preventDefault();
 
     if (isEdit && user?._id) {
-      const body: UpdateUserBody = { name, email, role, userIslv: userIslv || undefined };
+      const body: UpdateUserBody = { name, email, role, userIslv: userIslv || undefined, chatIaEnabled };
       // A troca de conta é um endpoint à parte (sincroniza os dois lados da relação).
       const accountChanged =
         role === "user" && Boolean(accountId) && accountId !== currentAccountId(user);
@@ -108,6 +111,7 @@ export function UserFormDialog({ open, onOpenChange, user }: Props) {
       role,
       ...(role === "user" && selectedAccount ? { accountUser: selectedAccount.email } : {}),
       ...(userIslv ? { userIslv } : {}),
+      chatIaEnabled,
     };
     create.mutate(body, {
       onSuccess: () => {
@@ -206,6 +210,23 @@ export function UserFormDialog({ open, onOpenChange, user }: Props) {
               onChange={(e) => setUserIslv(e.target.value)}
               placeholder="ABC123"
             />
+          </div>
+
+          <div className="flex items-start gap-2.5 rounded-md border border-border p-3">
+            <Checkbox
+              id="chatIaEnabled"
+              checked={chatIaEnabled}
+              onCheckedChange={(v) => setChatIaEnabled(v === true)}
+              className="mt-0.5"
+            />
+            <div className="space-y-0.5">
+              <Label htmlFor="chatIaEnabled" className="cursor-pointer">
+                Análise com IA
+              </Label>
+              <p className="text-xs text-muted-foreground">
+                Habilita o painel de análise com IA nos relatórios. Desativado por padrão.
+              </p>
+            </div>
           </div>
 
           <DialogFooter className="pt-2">

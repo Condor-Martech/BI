@@ -25,6 +25,7 @@ import { SentryInterceptor } from '../../core/sentry/sentry.interceptor';
 import { ApiCommonResponses, ApiNotFound } from '../../core/api/swagger/api.response';
 import { JwtAuthGuard } from '../../core/auth/auth.guard';
 import { RolesGuard } from '../../core/auth/roles.guard';
+import { ChatIaGuard } from '../../core/auth/chat-ia.guard';
 import { Roles } from '../../core/auth/roles-auth.decorator';
 import { ROLE_TYPES } from '../users/dto/create-user.dto';
 import { AnalysisService } from './analysis.service';
@@ -60,7 +61,7 @@ export class AnalysisController {
   @ApiOkResponse({ description: 'Análise gerado (ou recuperado do cache).', type: AnalysisResponseDto })
   @ApiNotFound('Relatório não encontrado.')
   @ApiCommonResponses()
-  @UseGuards(JwtAuthGuard, RolesGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard, ChatIaGuard)
   async analyze(
     @Req() req: Request,
     @Param('reportId') reportId: string,
@@ -83,7 +84,7 @@ export class AnalysisController {
   @ApiOkResponse({ description: 'Resposta do assistente para o turno.', type: ChatResponseDto })
   @ApiNotFound('Relatório ou conversa não encontrada.')
   @ApiCommonResponses()
-  @UseGuards(JwtAuthGuard, RolesGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard, ChatIaGuard)
   async chat(
     @Req() req: Request,
     @Param('reportId') reportId: string,
@@ -104,7 +105,7 @@ export class AnalysisController {
   @ApiQuery({ name: 'skip', required: false, type: Number, example: 0 })
   @ApiOkResponse({ description: 'Lista paginada de conversas.' })
   @ApiCommonResponses()
-  @UseGuards(JwtAuthGuard, RolesGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard, ChatIaGuard)
   async conversations(
     @Req() req: Request,
     @Param('reportId') reportId: string,
@@ -124,7 +125,7 @@ export class AnalysisController {
   @ApiOkResponse({ description: 'Documento da conversa.' })
   @ApiNotFound('Conversa não encontrada.')
   @ApiCommonResponses()
-  @UseGuards(JwtAuthGuard, RolesGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard, ChatIaGuard)
   async conversation(@Req() req: Request, @Param('id') id: string) {
     const userId = String((req as any).user?._id ?? '');
     return this.analysisService.getConversation(id, userId);
@@ -136,7 +137,7 @@ export class AnalysisController {
   @ApiOkResponse({ description: 'Conversa removida.' })
   @ApiNotFound('Conversa não encontrada.')
   @ApiCommonResponses()
-  @UseGuards(JwtAuthGuard, RolesGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard, ChatIaGuard)
   async removeConversation(@Req() req: Request, @Param('id') id: string) {
     const userId = String((req as any).user?._id ?? '');
     return this.analysisService.deleteConversation(id, userId);
@@ -154,7 +155,7 @@ export class AnalysisController {
   @ApiQuery({ name: 'skip', required: false, type: Number, example: 0 })
   @ApiOkResponse({ description: 'Lista paginada de análises.' })
   @ApiCommonResponses()
-  @UseGuards(JwtAuthGuard, RolesGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard, ChatIaGuard)
   @Roles(ROLE_TYPES.MANAGER)
   async findAll(
     @Query('limit', new DefaultValuePipe(20), ParseIntPipe) limit: number,
@@ -175,7 +176,7 @@ export class AnalysisController {
   @ApiQuery({ name: 'skip', required: false, type: Number, example: 0 })
   @ApiOkResponse({ description: 'Lista paginada de análises.' })
   @ApiCommonResponses()
-  @UseGuards(JwtAuthGuard, RolesGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard, ChatIaGuard)
   async history(
     @Param('reportId') reportId: string,
     @Query('limit', new DefaultValuePipe(20), ParseIntPipe) limit: number,
@@ -193,7 +194,7 @@ export class AnalysisController {
   @ApiOkResponse({ description: 'Documento de análise.' })
   @ApiNotFound('Análise não encontrado.')
   @ApiCommonResponses()
-  @UseGuards(JwtAuthGuard, RolesGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard, ChatIaGuard)
   async findOne(@Param('id') id: string) {
     return this.analysisService.findOne(id);
   }

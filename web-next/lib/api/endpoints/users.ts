@@ -34,6 +34,7 @@ export const userListItemSchema = z
       .optional(),
     groupByPB: z.array(z.string()).optional(),
     reportsByPB: z.array(z.string()).optional(),
+    chatIaEnabled: z.boolean().optional(),
     createdAt: z.union([z.string(), z.date()]).optional(),
     lastLogin: z.union([z.string(), z.date()]).nullable().optional(),
   })
@@ -61,6 +62,7 @@ export interface CreateUserBody {
   password?: string;
   groupIdPB?: string[];
   reportIdPB?: string[];
+  chatIaEnabled?: boolean;
 }
 
 /** Body for PATCH /users/update/:id — same shape as CreateUserDto, all optional. */
