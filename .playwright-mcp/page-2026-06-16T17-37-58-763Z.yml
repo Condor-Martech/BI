@@ -1,0 +1,89 @@
+- generic:
+  - generic:
+    - main:
+      - generic:
+        - generic:
+          - generic:
+            - img
+          - generic:
+            - generic: Plataforma BI
+            - generic: Condor · Business Intelligence
+        - generic:
+          - generic:
+            - heading [level=1]: Bem-vindo de volta
+            - paragraph: Acesse o painel para explorar seus relatórios.
+          - generic:
+            - generic:
+              - generic: E-mail
+              - group:
+                - group:
+                  - img
+                - textbox:
+                  - /placeholder: voce@empresa.com
+            - generic:
+              - generic:
+                - generic: Senha
+                - button: Esqueci minha senha
+              - group:
+                - group:
+                  - img
+                - textbox:
+                  - /placeholder: ••••••••
+                - group:
+                  - button:
+                    - generic:
+                      - img
+            - generic:
+              - button [disabled]:
+                - generic: Entrar
+        - paragraph: © 2026Condor · Acesso restrito a usuários autorizados.
+    - complementary:
+      - generic:
+        - generic:
+          - img
+          - text: v2 · Painel renovado
+        - generic:
+          - generic:
+            - heading [level=2]: Visualize seus dados. Decida com clareza.
+            - paragraph: Relatórios Power BI consolidados, governança por workspace e auditoria de acesso em um único lugar.
+          - generic:
+            - generic:
+              - generic:
+                - generic: Acessos esta semana
+                - generic: "4.218"
+              - generic: +12,4%
+        - generic:
+          - generic: Confiável por equipes de dados
+  - region "Notifications alt+T"
+  - generic:
+    - heading [level=2]: Paleta de comandos
+    - paragraph: "Pesquise e execute comandos. Atalho: ⌘K"
+  - generic:
+    - generic:
+      - img
+    - button:
+      - img
+  - button "Open Next.js Dev Tools" [ref=e171] [cursor=pointer]:
+    - img [ref=e172]
+  - alert
+  - dialog "Recuperar senha" [ref=e184]:
+    - generic [ref=e185]:
+      - img [ref=e188]
+      - heading "Recuperar senha" [level=2] [ref=e191]
+      - paragraph [ref=e192]: Informe o e-mail cadastrado. Você receberá uma nova senha provisória.
+    - generic [ref=e193]:
+      - generic [ref=e194]:
+        - generic [ref=e195]: E-mail
+        - group [ref=e196]:
+          - group [ref=e197]:
+            - img [ref=e198]
+          - textbox "E-mail" [active] [ref=e201]:
+            - /placeholder: voce@empresa.com
+      - generic [ref=e202]:
+        - button "Cancelar" [ref=e203]
+        - generic [ref=e204]:
+          - button "Enviar nova senha" [disabled]:
+            - generic: Enviar nova senha
+    - button "Close" [ref=e205]:
+      - img
+      - generic [ref=e206]: Close

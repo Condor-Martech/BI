@@ -1,0 +1,79 @@
+- generic:
+  - generic:
+    - main:
+      - generic:
+        - generic:
+          - generic:
+            - img
+          - generic:
+            - generic: Plataforma BI
+            - generic: Condor · Business Intelligence
+        - generic:
+          - generic:
+            - heading [level=1]: Bem-vindo de volta
+            - paragraph: Acesse o painel para explorar seus relatórios.
+          - generic:
+            - generic:
+              - generic: E-mail
+              - group:
+                - group:
+                  - img
+                - textbox:
+                  - /placeholder: voce@empresa.com
+            - generic:
+              - generic:
+                - generic: Senha
+                - button: Esqueci minha senha
+              - group:
+                - group:
+                  - img
+                - textbox:
+                  - /placeholder: ••••••••
+                - group:
+                  - button:
+                    - generic:
+                      - img
+            - generic:
+              - button [disabled]:
+                - generic: Entrar
+        - paragraph: © 2026Condor · Acesso restrito a usuários autorizados.
+    - complementary:
+      - generic:
+        - generic:
+          - img
+          - text: v2 · Painel renovado
+        - generic:
+          - generic:
+            - heading [level=2]: Visualize seus dados. Decida com clareza.
+            - paragraph: Relatórios Power BI consolidados, governança por workspace e auditoria de acesso em um único lugar.
+          - generic:
+            - generic:
+              - generic:
+                - generic: Acessos esta semana
+                - generic: "4.218"
+              - generic: +12,4%
+        - generic:
+          - generic: Confiável por equipes de dados
+  - region "Notifications alt+T"
+  - generic:
+    - heading [level=2]: Paleta de comandos
+    - paragraph: "Pesquise e execute comandos. Atalho: ⌘K"
+  - generic:
+    - generic:
+      - img
+    - button:
+      - img
+  - button "Open Next.js Dev Tools" [ref=e171] [cursor=pointer]:
+    - img [ref=e172]
+  - alert
+  - dialog "Verifique seu e-mail" [active] [ref=e209]:
+    - generic [ref=e185]:
+      - img [ref=e211]
+      - heading "Verifique seu e-mail" [level=2] [ref=e213]
+      - paragraph [ref=e192]: Enviamos uma nova senha provisória. Acesse com ela e altere assim que possível.
+    - generic [ref=e214]:
+      - generic [ref=e215]: Enviado para hector.velasques@condor.com.br. Se não chegar em alguns minutos, confira a pasta de spam.
+      - button "Entendi" [ref=e217]
+    - button "Close" [ref=e205]:
+      - img
+      - generic [ref=e206]: Close

@@ -17,6 +17,10 @@ function isPublic(pathname: string): boolean {
   if (pathname.startsWith("/favicon")) return true;
   // /set-password/<token> — fluxo de convite, sem cookie ainda.
   if (pathname.startsWith("/set-password/")) return true;
+  // PATCH /api/users/forget/pass/<email> — reset de senha pelo usuário deslogado.
+  // Backend marca o handler com @SkipAuth(); sem este whitelist o middleware
+  // redireciona ao /login antes de chegar ao backend e o reset nunca dispara.
+  if (pathname.startsWith("/api/users/forget/pass/")) return true;
   return false;
 }
 
