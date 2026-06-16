@@ -39,7 +39,7 @@ Sentry init, Swagger at `/api`, `useContainer` wired for class-validator custom 
 
 **Root module** — `src/app.module.ts` imports `ModModule` (feature modules) and `JobModule`
 (Bull queues). All infra config is centralized in `src/app.config.ts` as exported constants
-(`CONF`, `CACHE_CONF`, `MAILER_CONF`, `REDIS_CONF`, `MONGO_URL`, `MONGO_CONF`, `PROVIDER`).
+(`CONF`, `CACHE_CONF`, `REDIS_CONF`, `MONGO_URL`, `MONGO_CONF`, `PROVIDER`).
 
 **`PROVIDER`** in `app.config.ts` registers two **global** `APP_GUARD`s — order matters:
 `JwtAuthGuard` then `RolesGuard`. They run on *every* request.
@@ -91,8 +91,8 @@ queues), `services/` (backup, scheduled `tasks`, date conversion), `utils/` (`au
 `ConfigModule.forRoot({ isGlobal: true })` loads a `.env` file (not committed; no `.env.example`).
 Required vars referenced in code: `JWT_SECRET`, `ENCRYPTION_KEY`, `BCRYPT_COST`, `POWER_BI_BASE_URL`,
 `AZURE_URL`, `AZURE_GRANT_TYPE`, `AZURE_GRANT_TYPE2`, `AZURE_SCOPE`, `AZURE_RESOURCE`,
-`AZURE_CLIENT_SECRET`, `REDIS_HOST`, `REDIS_PORT`, `MAIL_SMTP`, `MAIL_PORT`, `APP_MAIL_USER`,
-`APP_MAIL_PASS`, `BASE_URL`, `USER_LIMIT`, `MULTER_TYPES`.
+`AZURE_CLIENT_SECRET`, `REDIS_HOST`, `REDIS_PORT`, `EMAIL_API_URL`, `BASE_URL`,
+`BULL_BOARD_USER`, `BULL_BOARD_PASS`, `USER_LIMIT`, `MULTER_TYPES`.
 
 **`BLOB_READ_WRITE_TOKEN`** is required by `MapsController.uploadFile` for `@vercel/blob` `put()`.
 Auto-injected by Vercel when a Blob store is linked to the project (Vercel dashboard → Storage →

@@ -58,7 +58,6 @@ describe('FilterController', () => {
             incluedAccountID: jest.fn(),
             updatePass: jest.fn(),
             remove: jest.fn(),
-            sendResetEmail: jest.fn(),
           }
         }, {
           provide: Authenticator,

@@ -16,9 +16,11 @@ export class MailerHttpService {
   private readonly http: AxiosInstance;
 
   constructor(private readonly configService: ConfigService) {
-    this.endpoint =
-      this.configService.get<string>('EMAIL_API_URL') ??
-      'https://email.z0n.co/send-bi';
+    // EMAIL_API_URL está em REQUIRED_ENV_VARS (app.config.ts) — o boot falha
+    // antes deste ponto se estiver ausente, então o non-null assertion é seguro.
+    this.endpoint = this.configService
+      .get<string>('EMAIL_API_URL')!
+      .replace(/\/$/, '');
     this.http = axios.create({
       timeout: 15_000,
       headers: { 'Content-Type': 'application/json' },

@@ -54,7 +54,6 @@ describe('UsersController', () => {
           incluedAccountID: jest.fn(),
           updatePass: jest.fn(),
           remove: jest.fn().mockResolvedValue(undefined),
-          sendResetEmail: jest.fn(),
         }
       }, {
         provide: Authenticator,

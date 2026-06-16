@@ -25,6 +25,8 @@ const REQUIRED_ENV_VARS = [
   'REDIS_PORT',
   // BASE_URL é usado para construir o link de set-password do welcome email.
   'BASE_URL',
+  // Endpoint HTTP do serviço de envio de emails (welcome + reset password).
+  'EMAIL_API_URL',
   // Basic-auth obrigatório no Bull Board (/admin/queues).
   'BULL_BOARD_USER',
   'BULL_BOARD_PASS',
