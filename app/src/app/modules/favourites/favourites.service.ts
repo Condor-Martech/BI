@@ -52,38 +52,50 @@ export class FavouritesService {
       const user = await this.userService.findOne(userID);
       const favourites = await this.favouriteModel.find({ userID }).sort({ order: 1 }).exec();
 
-      const results = await Promise.all(
+      // Favoritos órfãos (reportIdPB que não existe mais em `reports`, p.ex. após resync ou delete)
+      // não devem derrubar a lista inteira. Usamos allSettled e filtramos os ausentes.
+      const settled = await Promise.all(
         favourites.map(async (favourite) => {
-          const report = await this.reportService.findOne(favourite.reportIdPB, user.email);
-          return {
-            ...favourite.toObject(),
-            report: report,
-          };
+          try {
+            const report = await this.reportService.findOne(favourite.reportIdPB, user.email);
+            return { favourite, report };
+          } catch (err) {
+            if (err instanceof NotFoundException) {
+              this.logger.warn(
+                `Favorito órfão ignorado (user=${userID}, reportIdPB=${favourite.reportIdPB}): ${err.message}`,
+              );
+              return null;
+            }
+            throw err;
+          }
         })
       );
 
-      const favouriteReports = results.map((favourite) => {
-        const account = Array.isArray(favourite.report.accountID) && favourite.report.accountID.length > 0
-          ? favourite.report.accountID[0]
-          : null;
-        return {
-          _id: favourite._id,
-          userID: favourite.userID,
-          reportIdPB: favourite.reportIdPB,
-          order: favourite.order,
-          report: {
-            reportIdPB: favourite.report.reportIdPB,
-            name: favourite.report.name,
-            embedUrl: favourite.report.embedUrl,
-            groupIdPB: favourite.report.groupIdPB,
-            account: account ? {
-              nameAccount: account.nameAccount,
-              email: account.email,
-              token: account.token,
-            } : null,
-          }
-        };
-      });
+      type SettledEntry = NonNullable<(typeof settled)[number]>;
+      const favouriteReports = settled
+        .filter((entry): entry is SettledEntry => entry !== null)
+        .map(({ favourite, report }) => {
+          const account = Array.isArray(report.accountID) && report.accountID.length > 0
+            ? report.accountID[0]
+            : null;
+          return {
+            _id: favourite._id,
+            userID: favourite.userID,
+            reportIdPB: favourite.reportIdPB,
+            order: favourite.order,
+            report: {
+              reportIdPB: report.reportIdPB,
+              name: report.name,
+              embedUrl: report.embedUrl,
+              groupIdPB: report.groupIdPB,
+              account: account ? {
+                nameAccount: account.nameAccount,
+                email: account.email,
+                token: account.token,
+              } : null,
+            }
+          };
+        });
 
       return favouriteReports;
     } catch (error) {

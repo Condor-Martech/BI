@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, InternalServerErrorException, Logger, NotFoundException } from '@nestjs/common';
+import { BadRequestException, HttpException, Injectable, InternalServerErrorException, Logger, NotFoundException } from '@nestjs/common';
 import { Account, AccountDocument } from '../accounts/account.entity';
 import { AccountsService } from '../accounts/accounts.service';
 import { Group, GroupsDocument } from '../groups/group.entity';
@@ -205,6 +205,9 @@ export class ReportsService {
       return result;
 
     } catch (error) {
+      if (error instanceof HttpException) {
+        throw error;
+      }
       if (error instanceof MongooseError.CastError) {
         throw new BadRequestException(`Invalid ID format: ${error.message}`);
       }
@@ -230,6 +233,9 @@ export class ReportsService {
       return result;
 
     } catch (error) {
+      if (error instanceof HttpException) {
+        throw error;
+      }
       if (error instanceof MongooseError.CastError) {
         throw new BadRequestException(`Invalid ID format: ${error.message}`);
       }

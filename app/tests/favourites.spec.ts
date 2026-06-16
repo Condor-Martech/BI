@@ -6,6 +6,7 @@ import { FavouritesService } from '../src/app/modules/favourites/favourites.serv
 import { Favourite } from '../src/app/modules/favourites/favourite.entity';
 import { ReportsService } from '../src/app/modules/reports/reports.service';
 import { UsersService } from '../src/app/modules/users/users.service';
+import { EventsService } from '../src/app/modules/events/events.service';
 
 /**
  * Spec enfocado no hardening do módulo favourites:
@@ -20,6 +21,7 @@ describe('FavouritesService — hardening (scope por usuário)', () => {
   const favouriteModel: any = jest.fn();
   const userServiceMock = { findOne: jest.fn() };
   const reportServiceMock = { findOne: jest.fn(), findOneByID: jest.fn() };
+  const eventsServiceMock = { trackFavouriteAdded: jest.fn(), trackFavouriteRemoved: jest.fn() };
 
   beforeEach(async () => {
     jest.clearAllMocks();
@@ -31,7 +33,7 @@ describe('FavouritesService — hardening (scope por usuário)', () => {
     }));
     favouriteModel.find = jest.fn();
     favouriteModel.findOneAndUpdate = jest.fn();
-    favouriteModel.deleteOne = jest.fn();
+    favouriteModel.findOneAndDelete = jest.fn();
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -39,6 +41,7 @@ describe('FavouritesService — hardening (scope por usuário)', () => {
         { provide: getModelToken(Favourite.name), useValue: favouriteModel },
         { provide: UsersService, useValue: userServiceMock },
         { provide: ReportsService, useValue: reportServiceMock },
+        { provide: EventsService, useValue: eventsServiceMock },
       ],
     }).compile();
 
@@ -67,14 +70,16 @@ describe('FavouritesService — hardening (scope por usuário)', () => {
 
   describe('remove — só afeta favoritos do próprio usuário', () => {
     it('rejeita com NotFoundException quando nada foi deletado (favorito alheio/inexistente)', async () => {
-      favouriteModel.deleteOne.mockReturnValue({ exec: jest.fn().mockResolvedValue({ deletedCount: 0 }) });
+      favouriteModel.findOneAndDelete.mockReturnValue({ exec: jest.fn().mockResolvedValue(null) });
 
       await expect(service.remove('fav1', 'userB')).rejects.toThrow(NotFoundException);
-      expect(favouriteModel.deleteOne).toHaveBeenCalledWith({ _id: 'fav1', userID: 'userB' });
+      expect(favouriteModel.findOneAndDelete).toHaveBeenCalledWith({ _id: 'fav1', userID: 'userB' });
     });
 
     it('remove quando o favorito pertence ao usuário', async () => {
-      favouriteModel.deleteOne.mockReturnValue({ exec: jest.fn().mockResolvedValue({ deletedCount: 1 }) });
+      favouriteModel.findOneAndDelete.mockReturnValue({
+        exec: jest.fn().mockResolvedValue({ _id: 'fav1', userID: 'userA', reportIdPB: 'r1' }),
+      });
 
       await expect(service.remove('fav1', 'userA')).resolves.toEqual({ deletedCount: 1 });
     });
@@ -108,6 +113,55 @@ describe('FavouritesService — hardening (scope por usuário)', () => {
 
       await expect(service.findAll('userA')).resolves.toEqual([]);
       expect(favouriteModel.find).toHaveBeenCalledWith({ userID: 'userA' });
+    });
+  });
+
+  describe('findAll — favoritos órfãos', () => {
+    const baseFav = (reportIdPB: string, order: number) => ({
+      _id: `fav-${reportIdPB}`,
+      userID: 'userA',
+      reportIdPB,
+      order,
+    });
+    const baseReport = (reportIdPB: string) => ({
+      reportIdPB,
+      name: `Report ${reportIdPB}`,
+      embedUrl: `https://embed/${reportIdPB}`,
+      groupIdPB: 'g1',
+      accountID: [{ nameAccount: 'AcctA', email: 'acct@x.com', token: 'tk' }],
+    });
+
+    it('ignora favoritos cujo reportIdPB não existe mais e devolve apenas os válidos', async () => {
+      userServiceMock.findOne.mockResolvedValue({ _id: 'userA', email: 'a@x.com' });
+      favouriteModel.find.mockReturnValue({
+        sort: jest.fn().mockReturnValue({
+          exec: jest.fn().mockResolvedValue([baseFav('rOK', 1), baseFav('rGONE', 2)]),
+        }),
+      });
+      reportServiceMock.findOne.mockImplementation(async (reportIdPB: string) => {
+        if (reportIdPB === 'rGONE') {
+          throw new NotFoundException(`Nenhum relatorio foi encontrado com ID : ${reportIdPB}`);
+        }
+        return baseReport(reportIdPB);
+      });
+
+      const result = await service.findAll('userA');
+
+      expect(result).toHaveLength(1);
+      expect(result[0]).toMatchObject({ _id: 'fav-rOK', reportIdPB: 'rOK' });
+      expect(result[0].report).toMatchObject({ reportIdPB: 'rOK', name: 'Report rOK' });
+    });
+
+    it('re-lança erros inesperados do reports.service (não mascara como 200)', async () => {
+      userServiceMock.findOne.mockResolvedValue({ _id: 'userA', email: 'a@x.com' });
+      favouriteModel.find.mockReturnValue({
+        sort: jest.fn().mockReturnValue({
+          exec: jest.fn().mockResolvedValue([baseFav('rBOOM', 1)]),
+        }),
+      });
+      reportServiceMock.findOne.mockRejectedValue(new Error('mongo down'));
+
+      await expect(service.findAll('userA')).rejects.toThrow(/mongo down/);
     });
   });
 });
