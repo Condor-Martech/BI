@@ -1,24 +1,25 @@
-import { MailerService } from "@nestjs-modules/mailer";
 import { OnQueueActive, OnQueueCompleted, OnQueueFailed, Process, Processor } from "@nestjs/bull";
 import { Logger } from "@nestjs/common";
 import { Job } from "bull";
+
+import { MailerHttpService } from "../services/mailer-http.service";
 
 
 @Processor('sendMailResetQueue')
 export class SendMailResetConsumer {
   private readonly logger = new Logger(SendMailResetConsumer.name);
 
-  constructor(private mailService: MailerService) { }
+  constructor(private mailService: MailerHttpService) { }
 
   private static logo: string = 'https://institucional.condor.com.br/wp-content/uploads/2024/01/Logo-Grande.png';
 
   @Process('sendMailResetJob')
   async sendRegister(job: Job) {
+    // O endpoint email.z0n.co/send-bi controla o `from` ("Central BI" <web@condor.com.br>).
     // Lançar (não chamar `done(error)`) é o que faz o Bull respeitar attempts/backoff.
     const firstName = job.data.name?.split(' ')[0] ?? 'Olá';
     await this.mailService.sendMail({
       to: job.data.email,
-      from: '"Plataforma Condor BI" <web@condor.com.br>',
       subject: `${firstName}, sua nova senha de acesso à Plataforma Condor BI`,
       html: await this.emailTemplateSac(job.data),
     });

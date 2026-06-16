@@ -9,6 +9,7 @@ import { SendMailResetConsumer } from './sendMailResetPass-consumer';
 import { SendMailResetProducer } from './sendMailResetPass-producer';
 import { ReportSyncConsumer } from './reportSync-consumer';
 import { ReportSyncProducer } from './reportSync-producer';
+import { MailerHttpService } from '../services/mailer-http.service';
 import { NotificationsModule } from '../../modules/notifications/notifications.module';
 import { ReportsModule } from '../../modules/reports/reports.module';
 
@@ -43,6 +44,7 @@ const DEFAULT_JOB_OPTIONS = {
         // GroupsService y EventsService llegan vía @Global() de sus modules.
     ],
     providers: [
+        MailerHttpService,
         SendMailWelcomeConsumer,
         SendMailWelcomeProducer,
         SendMailResetConsumer,

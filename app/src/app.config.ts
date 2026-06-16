@@ -1,7 +1,6 @@
 import { CacheModuleAsyncOptions, Provider } from "@nestjs/common";
 import { redisStore } from "cache-manager-redis-yet";
 import { ConfigService } from '@nestjs/config';
-import { MailerOptions } from "@nestjs-modules/mailer";
 import { BullRootModuleOptions, SharedBullAsyncConfiguration } from "@nestjs/bull";
 import { join } from "path";
 import { ServeStaticModuleOptions } from "@nestjs/serve-static";
@@ -24,11 +23,6 @@ const REQUIRED_ENV_VARS = [
   'AZURE_CLIENT_SECRET',
   'REDIS_HOST',
   'REDIS_PORT',
-  // SMTP — sem isso o welcome / reset / notification emails falham silenciosamente.
-  'MAIL_SMTP',
-  'MAIL_PORT',
-  'APP_MAIL_USER',
-  'APP_MAIL_PASS',
   // BASE_URL é usado para construir o link de set-password do welcome email.
   'BASE_URL',
   // Basic-auth obrigatório no Bull Board (/admin/queues).
@@ -64,40 +58,6 @@ export const CACHE_CONF: CacheModuleAsyncOptions = {
       store,
       // TTL em milissegundos — cache-manager v5 trabalha em ms (v3/v4 usavam segundos).
       ttl: 1000 * 60 * 60 * 24 * 7,
-    };
-  },
-};
-
-export const MAILER_CONF = {
-  inject: [ConfigService],
-  useFactory: (configService: ConfigService): MailerOptions => {
-    // Workaround Condor SMTP: el server solo habla TLS 1.0 con cipher legacy
-    // (DHE-RSA-AES256-SHA). Node 24 + OpenSSL 3 bloquea eso por default. Para
-    // destrabar usamos minVersion=TLSv1 y ciphers='DEFAULT@SECLEVEL=0' (override
-    // del security level que OpenSSL 3 aplica antes de set_min_proto_version).
-    // ⚠️ Cuando IT actualice el Postfix a TLS 1.2+, REVERTIR a TLSv1.2 sin ciphers.
-    const minVersion = (configService.get<string>('MAIL_MIN_TLS') ?? 'TLSv1.2') as
-      | 'TLSv1'
-      | 'TLSv1.1'
-      | 'TLSv1.2'
-      | 'TLSv1.3';
-    const ciphers = configService.get<string>('MAIL_CIPHERS');
-    return {
-      transport: {
-        host: configService.get<string>('MAIL_SMTP'),
-        port: Number(configService.get('MAIL_PORT')),
-        ignoreTLS: false,
-        secure: false,
-        auth: {
-          user: configService.get<string>('APP_MAIL_USER'),
-          pass: configService.get<string>('APP_MAIL_PASS'),
-        },
-        tls: {
-          minVersion,
-          rejectUnauthorized: false,
-          ...(ciphers ? { ciphers } : {}),
-        },
-      },
     };
   },
 };
