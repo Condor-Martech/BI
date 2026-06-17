@@ -1,6 +1,7 @@
 import { Suspense } from "react";
 import { cookies } from "next/headers";
 
+import { SdCredit } from "@/components/ui/sd-credit";
 import { getSession } from "@/lib/auth/session";
 
 import { CommandPalette } from "./_components/command-palette";
@@ -38,7 +39,14 @@ export default async function DashboardLayout({ children }: { children: React.Re
       />
 
       <main className="flex-1 overflow-auto bg-background">
-        <Suspense>{children}</Suspense>
+        <div className="flex min-h-full flex-col">
+          <div className="flex-1">
+            <Suspense>{children}</Suspense>
+          </div>
+          <footer className="border-t border-border/60 px-6 py-3">
+            <SdCredit />
+          </footer>
+        </div>
       </main>
     </div>
   );
