@@ -1,6 +1,6 @@
 {
   "name": "legacy-web-next",
-  "version": "2.0.1",
+  "version": "2.0.2",
   "private": true,
   "description": "Frontend Next.js 16 para el backend legacy NestJS (new-bi/legacy/app). Independiente del Turborepo de new-bi.",
   "scripts": {
