@@ -81,7 +81,15 @@
       "Bash(bat --plain src/app/modules/users/dto/update-user.dto.ts)",
       "Bash(bat --plain web-next/lib/api/proxy.ts)",
       "Bash(fd . web-next/app/api/users -e ts -x bat --plain {})",
-      "Bash(pnpm -C /Users/editor2/project/2026/new-bi/legacy/web-next typecheck)"
+      "Bash(pnpm -C /Users/editor2/project/2026/new-bi/legacy/web-next typecheck)",
+      "Bash(fd -t d '^nodemailer$' node_modules -d 2)",
+      "Bash(bat --style=plain,numbers src/app.module.ts)",
+      "Bash(npm rebuild *)",
+      "Bash(fd -H -t f \"^\\\\.env\" --max-depth 1 -x rg -l \"URL\" {})",
+      "Bash(rg -n \"API_URL|LEGACY_API|BACKEND\" .env*)",
+      "Bash(curl -s http://localhost:3000/reports/08ae6fdd-a80d-487f-a528-680baf15d074 -H 'Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjY2Njk5NTAxZWJhMTE5NTM4OWQxYzJjZiIsImVtYWlsIjoiaGVjdG9yLnZlbGFzcXVlc0Bjb25kb3IuY29tLmJyIiwicm9sZSI6Im1hbmFnZXIiLCJpYXQiOjE3ODA5MjIzNjEsImV4cCI6MTc4MDk5NDM2MX0.elnItOR9_6p0_JIICTPtsf2Jz6rrrVJilYxp1MD-SC8' -o /tmp/report_detail.json -w 'HTTP %{http_code}\\\\n')",
+      "Bash(git pull *)",
+      "Bash(git stash *)"
     ],
     "additionalDirectories": [
       "/Users/editor2/project/2026/new-bi/legacy/web-next/app/(dashboard)/report/[reportId]/_components"
