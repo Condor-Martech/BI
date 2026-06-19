@@ -221,16 +221,16 @@ export class UsersService {
       if (query.lastLoginTo) filter.lastLogin.$lte = new Date(query.lastLoginTo);
     }
 
-    // Lista MANAGER: só os campos que a tabela/edição usam (name, email, role,
-    // userIslv, lastLogin, accountID, chatIaEnabled) + _id implícito. Exclui
-    // password (leak) e arrays pesados não usados (reportsByPB, groupByPB,
-    // userGroups, filterId). accountID é populado apenas com nameAccount + email
-    // para a coluna "E-mail da conta" (sem token, que é sensível).
-    // chatIaEnabled é necessário para o checkbox do formulário de edição refletir
-    // o valor salvo (sem ele, o checkbox sempre abria desmarcado).
+    // Lista MANAGER: campos que a tabela/edição usam (name, email, role,
+    // userIslv, lastLogin, accountID, chatIaEnabled) + reportsByPB/groupByPB,
+    // necessários para a tela de Permissões pré-marcar os relatórios já salvos
+    // do usuário (sem eles, a seleção se "perdia" após salvar). + _id implícito.
+    // Exclui password (leak), userGroups e filterId (não usados aqui).
+    // accountID é populado apenas com nameAccount + email para a coluna
+    // "E-mail da conta" (sem token, que é sensível).
     return this.userModel
       .find(filter)
-      .select('name email role userIslv lastLogin accountID chatIaEnabled')
+      .select('name email role userIslv lastLogin accountID chatIaEnabled reportsByPB groupByPB')
       .populate({ path: 'accountID', select: 'nameAccount email', model: this.accountModel })
       .exec();
   };
