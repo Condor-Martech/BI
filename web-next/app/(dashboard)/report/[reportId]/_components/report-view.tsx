@@ -1,13 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useOpenPanel } from "@openpanel/nextjs";
 import { ChartBar, ChevronLeft, Database, Folder, Sparkles } from "lucide-react";
 
-import {
-  ResizableHandle,
-  ResizablePanel,
-  ResizablePanelGroup,
-} from "@/components/ui/resizable";
 import type { ReportDetail } from "@/lib/api/endpoints/reports";
 
 import { FavouriteButton } from "./favourite-button";
@@ -15,10 +11,19 @@ import { PowerBIReport } from "./power-bi-report";
 import { AnalysisPanel } from "./analysis-panel";
 
 /**
- * Client half of the report page. Owns the resizable layout (Power BI embed +
- * AI analysis panel) plus the panel's collapse-to-rail behavior, mirroring the
- * dashboard sidebar. Collapsing only changes the embed's width — the iframe is
- * never re-mounted, so its live token/state survive.
+ * Client half of the report page. Owns the report + AI analysis layout plus the
+ * panel's collapse-to-rail behavior, mirroring the dashboard sidebar.
+ *
+ * CRITICAL: the <PowerBIReport> is rendered exactly ONCE, as the first flex
+ * child, in a DOM position that never changes across the collapsed/expanded
+ * toggle. The analysis UI (rail or panel) is only ever a sibling. Moving the
+ * Power BI iframe in the DOM would force the browser to reload Power BI's
+ * sandboxed frames (`cvSandboxPack.cshtml`), breaking their cross-frame
+ * postMessage handshake — which surfaces in production as
+ * "Unsafe attempt to load URL ... Domains, protocols and ports must match".
+ * That is why this layout uses a fixed-width sibling instead of a
+ * ResizablePanelGroup: swapping the report between branches re-parented the
+ * iframe and triggered that error.
  */
 export function ReportView({
   detail,
@@ -30,6 +35,17 @@ export function ReportView({
   const [collapsed, setCollapsed] = useState(true);
 
   const accountName = detail.accountID.nameAccount ?? detail.accountID.email ?? "Cuenta";
+
+  // OpenPanel: cuenta accesos por reporte. Agrupá por `reportName`/`reportId` en
+  // el dashboard de OpenPanel para ver los más accesados. Una vez por reporte.
+  const { track } = useOpenPanel();
+  useEffect(() => {
+    track("report_viewed", {
+      reportId: detail.reportIdPB,
+      reportName: detail.name ?? "sin nombre",
+      account: accountName,
+    });
+  }, [track, detail.reportIdPB, detail.name, accountName]);
 
   return (
     <div className="flex h-screen flex-col">
@@ -67,34 +83,23 @@ export function ReportView({
       </header>
 
       <div className="flex flex-1 overflow-hidden bg-muted/30">
-        {!chatIaEnabled ? (
-          <div className="min-w-0 flex-1 p-6">
-            <PowerBIReport reportId={detail.reportIdPB} initialData={detail} />
-          </div>
-        ) : collapsed ? (
-          <>
-            <div className="min-w-0 flex-1 p-6">
-              <PowerBIReport reportId={detail.reportIdPB} initialData={detail} />
-            </div>
+        {/* Stable embed slot — never moves, never re-mounts on toggle. */}
+        <div className="min-w-0 flex-1 p-6">
+          <PowerBIReport reportId={detail.reportIdPB} initialData={detail} />
+        </div>
+
+        {chatIaEnabled &&
+          (collapsed ? (
             <AnalysisRail onExpand={() => setCollapsed(false)} />
-          </>
-        ) : (
-          <ResizablePanelGroup orientation="horizontal" className="h-full">
-            <ResizablePanel id="report" defaultSize="65%" minSize="30%" className="p-6">
-              <PowerBIReport reportId={detail.reportIdPB} initialData={detail} />
-            </ResizablePanel>
-
-            <ResizableHandle withHandle />
-
-            <ResizablePanel id="analysis" defaultSize="35%" minSize="24%" maxSize="55%">
+          ) : (
+            <aside className="flex w-[420px] shrink-0 flex-col border-l border-border">
               <AnalysisPanel
                 reportIdPB={detail.reportIdPB}
                 reportName={detail.name}
                 onCollapse={() => setCollapsed(true)}
               />
-            </ResizablePanel>
-          </ResizablePanelGroup>
-        )}
+            </aside>
+          ))}
       </div>
     </div>
   );

@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import { withSentryConfig } from "@sentry/nextjs";
 import type { NextConfig } from "next";
 
 // Versão da plataforma lida do package.json em build time (fonte única de verdade).
@@ -17,4 +18,14 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default nextConfig;
+// Sin tunnelRoute: web-next no define CSP, así que el SDK envía directo a Sentry.
+export default withSentryConfig(nextConfig, {
+  // Subida de source maps — no-op si estas env vars no están (dev/local).
+  org: process.env.SENTRY_ORG,
+  project: process.env.SENTRY_PROJECT,
+  authToken: process.env.SENTRY_AUTH_TOKEN,
+  silent: !process.env.CI,
+  widenClientFileUpload: true,
+  disableLogger: true,
+});
+

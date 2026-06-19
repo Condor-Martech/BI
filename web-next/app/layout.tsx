@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Inter, IBM_Plex_Mono } from "next/font/google";
+import { OpenPanelComponent } from "@openpanel/nextjs";
 
 import { Providers } from "./providers";
 import "./globals.css";
@@ -34,6 +35,14 @@ export default function RootLayout({
       className={`${inter.variable} ${plexMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col bg-background text-foreground">
+        {process.env.NEXT_PUBLIC_OPENPANEL_CLIENT_ID && (
+          <OpenPanelComponent
+            clientId={process.env.NEXT_PUBLIC_OPENPANEL_CLIENT_ID}
+            trackScreenViews
+            trackOutgoingLinks
+            trackAttributes
+          />
+        )}
         <Providers>{children}</Providers>
       </body>
     </html>

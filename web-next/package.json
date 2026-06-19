@@ -1,6 +1,6 @@
 {
   "name": "legacy-web-next",
-  "version": "2.0.2",
+  "version": "2.0.3",
   "private": true,
   "description": "Frontend Next.js 16 para el backend legacy NestJS (new-bi/legacy/app). Independiente del Turborepo de new-bi.",
   "scripts": {
@@ -14,6 +14,8 @@
   },
   "dependencies": {
     "@hookform/resolvers": "^5.4.0",
+    "@openpanel/nextjs": "^1.5.1",
+    "@sentry/nextjs": "^10.59.0",
     "@tanstack/react-query": "^5.100.13",
     "@tanstack/react-table": "^8.21.3",
     "class-variance-authority": "^0.7.1",

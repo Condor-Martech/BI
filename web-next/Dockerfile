@@ -13,8 +13,24 @@ RUN pnpm install --frozen-lockfile --ignore-workspace
 FROM base AS builder
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
-ENV NEXT_TELEMETRY_DISABLED=1
-RUN pnpm build
+
+# Build-time: los NEXT_PUBLIC_* se inlinean en el bundle del cliente y el plugin
+# de Sentry sube sourcemaps durante el build. Sin esto quedan undefined en la imagen.
+ARG NEXT_PUBLIC_SENTRY_DSN
+ARG NEXT_PUBLIC_OPENPANEL_CLIENT_ID
+ARG SENTRY_ORG
+ARG SENTRY_PROJECT
+ENV NEXT_TELEMETRY_DISABLED=1 \
+    NEXT_PUBLIC_SENTRY_DSN=$NEXT_PUBLIC_SENTRY_DSN \
+    NEXT_PUBLIC_OPENPANEL_CLIENT_ID=$NEXT_PUBLIC_OPENPANEL_CLIENT_ID \
+    SENTRY_ORG=$SENTRY_ORG \
+    SENTRY_PROJECT=$SENTRY_PROJECT
+
+# SENTRY_AUTH_TOKEN es secreto -> mount, no ARG (no queda en el image history).
+# Sin el secreto el build sigue; el plugin solo se saltea el upload de sourcemaps.
+RUN --mount=type=secret,id=sentry_auth_token \
+    SENTRY_AUTH_TOKEN="$(cat /run/secrets/sentry_auth_token 2>/dev/null || true)" \
+    pnpm build
 
 
 FROM node:20-alpine AS runner

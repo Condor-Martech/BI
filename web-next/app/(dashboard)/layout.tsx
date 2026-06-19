@@ -1,5 +1,6 @@
 import { Suspense } from "react";
 import { cookies } from "next/headers";
+import { IdentifyComponent } from "@openpanel/nextjs";
 
 import { SdCredit } from "@/components/ui/sd-credit";
 import { getSession } from "@/lib/auth/session";
@@ -23,6 +24,15 @@ export default async function DashboardLayout({ children }: { children: React.Re
 
   return (
     <div className="flex h-screen">
+      {/* OpenPanel: identifica al usuario logueado → "usuarios conectados" en tiempo real. */}
+      {session?.payload.id && (
+        <IdentifyComponent
+          profileId={session.payload.id}
+          email={session.payload.email}
+          properties={{ role }}
+        />
+      )}
+
       {/* SSE notification stream — mounted once for the whole dashboard tree. */}
       <NotificationStreamMount />
 
@@ -43,8 +53,17 @@ export default async function DashboardLayout({ children }: { children: React.Re
           <div className="flex-1">
             <Suspense>{children}</Suspense>
           </div>
-          <footer className="border-t border-border/60 px-6 py-3">
+          <footer className="flex items-center justify-between gap-3 border-t border-border/60 px-6 py-3">
             <SdCredit />
+            {/* OpenPanel visitor counter — solo manager/admin, no `user`. */}
+            {isPrivileged && (
+              <iframe
+                src="https://opdashboard.cndr.me/widget/counter?shareId=RTwgeb"
+                height={32}
+                style={{ border: "none", overflow: "hidden" }}
+                title="Visitor Counter"
+              />
+            )}
           </footer>
         </div>
       </main>

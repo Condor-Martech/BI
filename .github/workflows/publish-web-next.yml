@@ -56,6 +56,15 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           platforms: linux/amd64
+          # NEXT_PUBLIC_* y org/project son valores públicos -> Repository variables.
+          build-args: |
+            NEXT_PUBLIC_SENTRY_DSN=${{ vars.NEXT_PUBLIC_SENTRY_DSN }}
+            NEXT_PUBLIC_OPENPANEL_CLIENT_ID=${{ vars.NEXT_PUBLIC_OPENPANEL_CLIENT_ID }}
+            SENTRY_ORG=${{ vars.SENTRY_ORG }}
+            SENTRY_PROJECT=${{ vars.SENTRY_PROJECT }}
+          # El auth token es secreto -> se monta, nunca como build-arg.
+          secrets: |
+            sentry_auth_token=${{ secrets.SENTRY_AUTH_TOKEN }}
           cache-from: type=gha,scope=bi-web-next
           cache-to: type=gha,scope=bi-web-next,mode=max
           provenance: false
