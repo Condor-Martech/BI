@@ -91,12 +91,20 @@ export class ReportsService {
   };
   async createMany(createReportDto: CreateReportDto[]) {
     try {
+      // Upsert por reportIdPB: si el reporte ya existe se actualiza en lugar de
+      // duplicarse. Antes usaba `new Model().save()` en loop, lo que insertaba
+      // un documento nuevo cada vez que /reports/syncronize corría y hacía que
+      // el mismo reportIdPB tuviera N docs con distintos _id — la causa raíz
+      // de los reportes duplicados en la UI de permisos.
       const results = await Promise.all(
         createReportDto.map(async (item) => {
-          const report = new this.reportModel(item);
-          await this.addGroupId(report.groupIdPB, report.reportIdPB);
-          return await report.save();
-        })
+          await this.addGroupId(item.groupIdPB, item.reportIdPB);
+          return this.reportModel.findOneAndUpdate(
+            { reportIdPB: item.reportIdPB },
+            { $set: item },
+            { upsert: true, new: true, setDefaultsOnInsert: true },
+          );
+        }),
       );
       // Inseriu relatorios e atualizou group.reports — invalida ambos namespaces.
       await this.cache.delByPrefix(CACHE_NS.REPORTS);

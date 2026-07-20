@@ -21,7 +21,6 @@ import { ListUsersDto } from './dto/list-users.dto';
 import { User, UserDocument } from './user.entity';
 import { InjectModel } from '@nestjs/mongoose';
 import { EventsService } from '../events/events.service';
-import { debug } from 'console';
 
 const INVITATION_TTL_MS = 48 * 60 * 60 * 1000;
 
@@ -70,7 +69,7 @@ export class UsersService {
       if (accountId) {
         const account = await this.accountService.findAccountById(accountId);
         const userCount = await this.accountService.getUserCount(accountId);
-        if (userCount >= Number(process.env.USER_LIMIT)) {
+        if (userCount >= this.resolveUserLimit()) {
           throw new ConflictException('A conta BI atingiu limite de usuario');
         }
         user.accountID = account._id;
@@ -319,7 +318,6 @@ export class UsersService {
       throw new ConflictException(`Conta possui usuários ${users.length} cadastrados`);
     }
   };
-// <<<<<<< HEAD
   async addUserToGroup(userId: string, groupId: string): Promise<User> {
     try {
       const user = await this.userModel.findById(userId);
@@ -366,19 +364,42 @@ export class UsersService {
         throw new NotFoundException('Conta não encontrada');
       }
       const userCount = await this.accountService.getUserCount(accountId);
-      if (userCount < Number(process.env.USER_LIMIT)) {
-        await this.accountModel.findOneAndUpdate({ _id: accountId }, { $addToSet: { users: userId } }, { new: true });
-        return await this.userModel.findByIdAndUpdate(
-          { _id: userId },
-          { $addToSet: { accountID: accountId }, },
-          { new: true })
-      } else {
+      if (userCount >= this.resolveUserLimit()) {
         throw new ConflictException('A conta BI atingiu limite de usuario');
       }
+      await this.accountModel.findOneAndUpdate({ _id: accountId }, { $addToSet: { users: userId } }, { new: true });
+      return await this.userModel.findByIdAndUpdate(
+        { _id: userId },
+        { $addToSet: { accountID: accountId }, },
+        { new: true });
     } catch (error) {
-      throw new ConflictException(error.message);
+      // Preservamos el tipo del error original (NotFound / Conflict / etc).
+      // Antes envolvíamos TODO en ConflictException(error.message), lo que
+      // convertía un 404 legítimo en un 409 confuso para el front.
+      if (error instanceof HttpException) throw error;
+      throw new InternalServerErrorException((error as Error)?.message ?? 'Erro ao vincular conta');
     }
   };
+
+  /**
+   * Lee USER_LIMIT del env con validación estricta.
+   * process.env.USER_LIMIT es string; Number(undefined) === NaN y toda comparación
+   * con NaN retorna false — antes eso hacía que el chequeo funcionara al revés en
+   * distintos call sites (create dejaba pasar todo, incluedAccountID bloqueaba todo).
+   * Si el env está mal configurado logueamos loud y devolvemos Infinity: preferimos
+   * NO bloquear la creación de usuarios que ese fuera un incidente P0 por config.
+   */
+  private resolveUserLimit(): number {
+    const raw = process.env.USER_LIMIT;
+    const parsed = Number(raw);
+    if (!raw || !Number.isFinite(parsed) || parsed <= 0) {
+      this.logger.error(
+        `USER_LIMIT inválido no env (valor="${raw}"). Retornando Infinity — nenhum limite será aplicado. Configure USER_LIMIT como um inteiro positivo.`,
+      );
+      return Number.POSITIVE_INFINITY;
+    }
+    return parsed;
+  }
   async incluedNewAccountID(userId: string, accountId: string): Promise<any> {
     try {
       const account = await this.accountModel.findById(accountId);
@@ -393,21 +414,6 @@ export class UsersService {
 
     } catch (error) {
       throw new InternalServerErrorException(error.message);
-// =======
-//   async incluedAccountID(id: string, accountId: string): Promise<any> {
-//     const account = await this.accountModel.findById(accountId);
-//     if (account.userCount < Number(process.env.USER_LIMIT)) {
-//       await this.accountModel.findByIdAndUpdate({ _id: account._id }, { $inc: { userCount: 1 } }, { $currentDate: { lastModified: true } });
-//       return await this.userModel.findByIdAndUpdate({
-//         _id: id,
-//       }, {
-//         $push: { accountId },
-//       }, {
-//         $currentDate: { lastModified: true }
-//       })
-//     } else {
-//       throw new HttpException('A conta BI atingiu limite de usuario', HttpStatus.CONFLICT);
-// >>>>>>> parent of 071e683 (Correções em AccountService and UserService)
     }
   };
   async incluedFilter(id: string, filterId: any): Promise<any> {

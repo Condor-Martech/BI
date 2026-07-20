@@ -1,4 +1,4 @@
-import { BadRequestException, ConflictException, Injectable, InternalServerErrorException, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, InternalServerErrorException, Logger, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
 import { EncryptionService } from '../../core/utils/encryption.service';
 import { RefreshToken } from '../../core/utils/refresh.token.service';
 import { CreateAccountDto } from './dto/create-account.dto';
@@ -8,12 +8,14 @@ import { User, UserDocument } from '../users/user.entity';
 import { Model, Error as MongooseError } from 'mongoose';
 import { InjectModel } from '@nestjs/mongoose';
 import { HttpService } from '@nestjs/axios';
-import { catchError, firstValueFrom, map } from 'rxjs';
+import { firstValueFrom, map } from 'rxjs';
 import { stringify } from 'querystring';
 import { AxiosError } from 'axios';
 
 @Injectable()
 export class AccountsService {
+  private readonly logger = new Logger(AccountsService.name);
+
   constructor(
     @InjectModel(Account.name) private accountModel: Model<AccountDocument>,
     @InjectModel(User.name) private userModel: Model<UserDocument>,
@@ -140,7 +142,9 @@ export class AccountsService {
   async getNewAccessToken(email: string) {
     const tokenEndpoint = 'https://login.microsoftonline.com/27cc7714-ecb3-407d-8115-da53f624c6da/oauth2/token';
     const account = await this.getRefreshToken(email);
-    const results = []
+    if (!account) {
+      throw new NotFoundException(`Account with email: ${email} not found`);
+    }
     const body = {
       grant_type: process.env.AZURE_GRANT_TYPE2,
       scope: process.env.AZURE_SCOPE,
@@ -154,31 +158,39 @@ export class AccountsService {
       },
     };
     try {
-      const response = await firstValueFrom(this.http.post(tokenEndpoint, stringify(body), config)
-        .pipe(
-          map(res => res.data),
-          catchError((error: AxiosError) => {
-            throw 'An error happened!';
-          })
-        )
+      // pipe(map(res => res.data)) sin catchError: si axios falla, firstValueFrom
+      // rechaza con el AxiosError original (con .response, .code, .message) —
+      // dejamos que el catch de abajo decida qué HttpException tirar.
+      const data = await firstValueFrom(
+        this.http.post(tokenEndpoint, stringify(body), config).pipe(map((res) => res.data)),
       );
-      results.push(response)
-      const newToken: UpdateAccountDto[] = results.map((item: any) => {
-
-        return {
-          email: email,
-          token: item.access_token,
-          refreshToken: item.refresh_token,
-          expiresIn: item.expires_in,
-          expiresOn: item.expires_on
-        } as UpdateAccountDto
-
-      })
+      const newToken: UpdateAccountDto[] = [
+        {
+          email,
+          token: data.access_token,
+          refreshToken: data.refresh_token,
+          expiresIn: data.expires_in,
+          expiresOn: data.expires_on,
+        } as UpdateAccountDto,
+      ];
       await this.update(newToken);
-
       return newToken;
     } catch (error) {
-      throw new InternalServerErrorException(error.message);
+      // Refresh de token de Azure caído/inválido = servicio upstream degradado,
+      // no error interno nuestro. Devolvemos 503 con contexto útil en logs para
+      // que el caller (getBiAccount/getIdAccount) pueda distinguir del 500 real.
+      // Cubrimos también los non-Error thrown (ej: throw 'string') por si acaso.
+      const axiosErr = error as AxiosError<{ error?: string; error_description?: string }>;
+      const azureCode = axiosErr?.response?.data?.error;
+      const azureDesc = axiosErr?.response?.data?.error_description;
+      const detail = azureDesc ?? azureCode ?? (error as Error)?.message ?? String(error);
+      this.logger.error(
+        `Falha ao renovar access_token de Azure para ${email}: ${detail}`,
+        (error as Error)?.stack,
+      );
+      throw new ServiceUnavailableException(
+        `Não foi possível renovar o token de Azure para ${email}: ${detail}`,
+      );
     }
   };
 
