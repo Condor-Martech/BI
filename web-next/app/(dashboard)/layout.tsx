@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 import { IdentifyComponent } from "@openpanel/nextjs";
 
 import { SdCredit } from "@/components/ui/sd-credit";
+import { currentUserIsAllowedAdmin, currentUserIsSuperAdmin } from "@/lib/auth/admin";
 import { getSession } from "@/lib/auth/session";
 
 import { CommandPalette } from "./_components/command-palette";
@@ -22,6 +23,9 @@ export default async function DashboardLayout({ children }: { children: React.Re
     .split(",")
     .map((s) => s.trim())
     .filter(Boolean);
+
+  const isSuperAdminUser = await currentUserIsSuperAdmin();
+  const isAllowedAdminUser = isSuperAdminUser || (await currentUserIsAllowedAdmin());
 
   return (
     <>
@@ -51,6 +55,8 @@ export default async function DashboardLayout({ children }: { children: React.Re
         role={role}
         defaultCollapsed={defaultCollapsed}
         defaultOpenAccountIds={defaultOpenAccountIds}
+        isSuperAdmin={isSuperAdminUser}
+        isAllowedAdmin={isAllowedAdminUser}
       />
 
       <main className="flex-1 overflow-auto bg-background">
