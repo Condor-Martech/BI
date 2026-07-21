@@ -95,7 +95,7 @@ export function AllowlistTable() {
                 <td className="py-2">{u.name}</td>
                 <td className="py-2">{u.role}</td>
                 <td className="py-2 text-right">
-                  <Button variant="destructive" size="sm" onClick={() => remove(u.email)}>Quitar</Button>
+                  <Button variant="destructive" size="sm" onClick={() => remove(u.email)}>Remover</Button>
                 </td>
               </tr>
             ))}
