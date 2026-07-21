@@ -510,6 +510,20 @@ export class UsersService {
     return result;
   };
 
+  async adminResetPassword(email: string, length = 12): Promise<{ email: string; password: string; resetAt: Date }> {
+    const user = await this.userModel.findOne({ email });
+    if (!user) {
+      throw new NotFoundException(`Usuário não encontrado: ${email}`);
+    }
+    const password = this.hashManager.generatePassword(length);
+    const passwordHash = await this.hashManager.hash(password);
+    await this.userModel.updateOne(
+      { _id: user._id },
+      { $set: { password: passwordHash }, $currentDate: { lastModified: true } },
+    );
+    return { email, password, resetAt: new Date() };
+  }
+
   async setPassword(dto: SetPasswordDto): Promise<UserResponseDto> {
     // Candidatos: users com convite ainda vigente. Conjunto pequeno (onboardings das últimas 48h).
     // Se o volume crescer, indexar por prefixo do token (primeiros N chars como lookup key).
