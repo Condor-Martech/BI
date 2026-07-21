@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, Inject, forwardRef, Req, UseInterceptors, UseGuards, BadRequestException, NotFoundException, UnauthorizedException, ForbiddenException, Query } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, Inject, forwardRef, Req, UseInterceptors, UseGuards, BadRequestException, NotFoundException, UnauthorizedException, ForbiddenException, Query, Header } from '@nestjs/common';
 import { ApiBearerAuth, ApiCreatedResponse, ApiOkResponse, ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
 import { CreateUserDto, ROLE_TYPES, UserResponseDto, UserResponseWithPopulateDto } from './dto/create-user.dto';
 import { ApiCommonResponses, ApiNotFound } from '../../core/api/swagger/api.response';
@@ -8,13 +8,17 @@ import { Roles } from '../../core/auth/roles-auth.decorator';
 import { ReportsService } from '../reports/reports.service';
 import { JwtAuthGuard } from '../../core/auth/auth.guard';
 import { RolesGuard } from '../../core/auth/roles.guard';
+import { AdminAllowlistGuard } from '../../core/auth/admin-allowlist.guard';
 import { ChangePasswordDto } from './dto/change-password.dto';
 import { ChangeUserAccountDto } from './dto/change-user-account.dto';
 import { SetPasswordDto } from './dto/set-password.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { LoginUserDto } from './dto/login-user.dto';
 import { ListUsersDto } from './dto/list-users.dto';
+import { AdminResetPasswordDto, AdminResetPasswordResponseDto } from './dto/admin-reset-password.dto';
 import { UsersService } from './users.service';
+import { AuditLogService } from '../audit-log/audit-log.service';
+import { AUDIT_ACTIONS, AUDIT_RESOURCE_TYPES } from '../audit-log/audit-log.constants';
 import { Request } from "express";
 
 
@@ -26,7 +30,7 @@ export class UsersController {
     @Inject(forwardRef(() => UsersService))
     private readonly usersService: UsersService,
     private readonly report: ReportsService,
-
+    private readonly auditLog: AuditLogService,
   ) { }
   @Post('create')
   @ApiBearerAuth()
@@ -308,6 +312,29 @@ export class UsersController {
     }
     await this.usersService.updatePass(emailFromDB.email);
     return { message: 'Sua nova senha foi enviada para seu email' };
+  }
+
+  @Post('admin/reset-password')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, AdminAllowlistGuard)
+  @ApiOperation({ summary: 'Reset da senha de um usuário (admin) — retorna a nova senha em texto plano' })
+  @ApiOkResponse({ type: AdminResetPasswordResponseDto })
+  @Header('Cache-Control', 'no-store')
+  @Header('Pragma', 'no-cache')
+  async adminResetPassword(
+    @Req() req: Request,
+    @Body() dto: AdminResetPasswordDto,
+  ): Promise<AdminResetPasswordResponseDto> {
+    const actor = (req as any).user;
+    const result = await this.usersService.adminResetPassword(dto.email, dto.length);
+    this.auditLog.emit({
+      action: AUDIT_ACTIONS.USER_PASSWORD_RESET_BY_ADMIN,
+      resourceType: AUDIT_RESOURCE_TYPES.USER,
+      resourceId: null,
+      actor: { userId: String(actor.id), email: actor.email, role: actor.role },
+      metadata: { targetEmail: dto.email },
+    });
+    return result;
   }
 
   @Delete('delete/:id')
