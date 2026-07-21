@@ -40,6 +40,11 @@ export const AUDIT_ACTIONS = {
   MAP_CREATE: 'map.create',
   MAP_UPDATE: 'map.update',
   MAP_DELETE: 'map.delete',
+
+  USER_PASSWORD_RESET_BY_ADMIN: 'user.password_reset_by_admin',
+  USER_IMPERSONATED: 'user.impersonated',
+  ADMIN_ALLOWLIST_ADDED: 'admin.allowlist_added',
+  ADMIN_ALLOWLIST_REMOVED: 'admin.allowlist_removed',
 } as const;
 
 export type AuditAction = (typeof AUDIT_ACTIONS)[keyof typeof AUDIT_ACTIONS];
