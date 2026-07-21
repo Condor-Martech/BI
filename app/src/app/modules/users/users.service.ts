@@ -524,6 +524,32 @@ export class UsersService {
     return { email, password, resetAt: new Date() };
   }
 
+  async adminGenerateImpersonationToken(targetEmail: string): Promise<{
+    token: string;
+    exp: number;
+    target: { email: string; name: string; role: string };
+  }> {
+    const target = await this.userModel.findOne({ email: targetEmail });
+    if (!target) {
+      throw new NotFoundException(`Usuário não encontrado: ${targetEmail}`);
+    }
+    const token = this.authenticator.generate(
+      {
+        id: String(target._id),
+        email: target.email,
+        role: target.role,
+        name: target.name,
+      },
+      '1h',
+    );
+    const decoded = this.authenticator.getTokenData(`Bearer ${token}`);
+    return {
+      token,
+      exp: (decoded as any).exp,
+      target: { email: target.email, name: target.name, role: target.role },
+    };
+  }
+
   async setPassword(dto: SetPasswordDto): Promise<UserResponseDto> {
     // Candidatos: users com convite ainda vigente. Conjunto pequeno (onboardings das últimas 48h).
     // Se o volume crescer, indexar por prefixo do token (primeiros N chars como lookup key).

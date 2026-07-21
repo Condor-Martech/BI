@@ -85,4 +85,35 @@ describe('UsersService — admin operations', () => {
       expect(hashManager.generatePassword).toHaveBeenCalledWith(12);
     });
   });
+
+  describe('adminGenerateImpersonationToken', () => {
+    it('generates a JWT with the target payload and 1h TTL', async () => {
+      userModel.findOne.mockResolvedValue({
+        _id: 'targetId',
+        email: 'target@x.com',
+        name: 'Target',
+        role: 'user',
+      });
+      authenticator.generate.mockReturnValue('signed.jwt.token');
+      authenticator.getTokenData.mockReturnValue({
+        id: 'targetId', email: 'target@x.com', role: 'user', name: 'Target',
+        exp: 1700000000, iat: 1699996400,
+      });
+
+      const result = await service.adminGenerateImpersonationToken('target@x.com');
+
+      expect(authenticator.generate).toHaveBeenCalledWith(
+        { id: 'targetId', email: 'target@x.com', role: 'user', name: 'Target' },
+        '1h',
+      );
+      expect(result.token).toBe('signed.jwt.token');
+      expect(result.exp).toBe(1700000000);
+      expect(result.target).toEqual({ email: 'target@x.com', name: 'Target', role: 'user' });
+    });
+
+    it('throws NotFoundException when target does not exist', async () => {
+      userModel.findOne.mockResolvedValue(null);
+      await expect(service.adminGenerateImpersonationToken('nope@x.com')).rejects.toThrow(NotFoundException);
+    });
+  });
 });
