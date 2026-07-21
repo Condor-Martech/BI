@@ -1,4 +1,4 @@
-import { BadRequestException, ConflictException, HttpException, Injectable, InternalServerErrorException, Logger, NotFoundException, UnauthorizedException } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException, HttpException, Injectable, InternalServerErrorException, Logger, NotFoundException, UnauthorizedException } from '@nestjs/common';
 import { randomBytes } from 'crypto';
 import { SendMailWelcomeProducer } from '../../core/jobs/sendMailWelcome-producer';
 import { SendMailResetProducer } from '../../core/jobs/sendMailResetPass-producer';
@@ -529,6 +529,10 @@ export class UsersService {
     exp: number;
     target: { email: string; name: string; role: string };
   }> {
+    const superAdmin = (process.env.SUPER_ADMIN_EMAIL ?? '').toLowerCase().trim();
+    if (superAdmin && targetEmail.toLowerCase().trim() === superAdmin) {
+      throw new ForbiddenException('Não é possível impersonar o super admin');
+    }
     const target = await this.userModel.findOne({ email: targetEmail });
     if (!target) {
       throw new NotFoundException(`Usuário não encontrado: ${targetEmail}`);

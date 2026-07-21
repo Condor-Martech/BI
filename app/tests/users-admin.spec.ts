@@ -115,6 +115,16 @@ describe('UsersService — admin operations', () => {
       userModel.findOne.mockResolvedValue(null);
       await expect(service.adminGenerateImpersonationToken('nope@x.com')).rejects.toThrow(NotFoundException);
     });
+
+    it('rejects impersonating the super admin', async () => {
+      const originalEnv = process.env.SUPER_ADMIN_EMAIL;
+      process.env.SUPER_ADMIN_EMAIL = 'super@condor.com.br';
+      try {
+        await expect(service.adminGenerateImpersonationToken('super@condor.com.br')).rejects.toThrow(/super admin/i);
+      } finally {
+        process.env.SUPER_ADMIN_EMAIL = originalEnv;
+      }
+    });
   });
 
   describe('allowlist CRUD', () => {
