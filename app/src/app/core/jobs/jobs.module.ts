@@ -3,6 +3,7 @@ import { BullAdapter, ExpressAdapter, createBullBoard } from '@bull-board/expres
 import basicAuth = require("express-basic-auth");
 import { Inject, MiddlewareConsumer, Module, NestModule, forwardRef } from "@nestjs/common";
 import { BullModule, getQueueToken } from "@nestjs/bull";
+import { MongooseModule } from "@nestjs/mongoose";
 import { SendMailWelcomeConsumer } from './sendMailWelcome-consumer';
 import { SendMailWelcomeProducer } from './sendMailWelcome-producer';
 import { SendMailResetConsumer } from './sendMailResetPass-consumer';
@@ -12,6 +13,7 @@ import { ReportSyncProducer } from './reportSync-producer';
 import { MailerHttpService } from '../services/mailer-http.service';
 import { NotificationsModule } from '../../modules/notifications/notifications.module';
 import { ReportsModule } from '../../modules/reports/reports.module';
+import { Account, AccountSchema } from '../../modules/accounts/account.entity';
 
 
 // Defaults seguros para todas as queues registradas neste módulo. Producers podem
@@ -36,6 +38,11 @@ const DEFAULT_JOB_OPTIONS = {
             name: 'reportSyncQueue',
             defaultJobOptions: DEFAULT_JOB_OPTIONS,
         }),
+        // Account schema — o ReportSyncConsumer escreve `syncStatus` na conta pra
+        // que a UI pinte um badge com o último estado do sync. AccountsModule é
+        // @Global mas MongooseModule.forFeature não propaga o model automaticamente,
+        // então registramos explícitamente aqui.
+        MongooseModule.forFeature([{ name: Account.name, schema: AccountSchema }]),
         // NotificationsModule expone `NotificationsService` (pushTransient para SSE).
         // ReportsModule expone `ReportsService` (consumer lo usa). `forwardRef` porque
         // ReportsController inyecta `ReportSyncProducer` del lado opuesto del grafo.

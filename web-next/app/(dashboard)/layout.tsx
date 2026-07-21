@@ -24,8 +24,10 @@ export default async function DashboardLayout({ children }: { children: React.Re
 
   return (
     <div className="flex h-screen">
-      {/* OpenPanel: identifica al usuario logueado → "usuarios conectados" en tiempo real. */}
-      {session?.payload.id && (
+      {/* OpenPanel: identifica al usuario logueado → "usuarios conectados" en tiempo real.
+          Guard con el mismo env var que monta <OpenPanelComponent> en el root layout —
+          sin el script cargado, window.op no existe y este componente explota. */}
+      {process.env.NEXT_PUBLIC_OPENPANEL_CLIENT_ID && session?.payload.id && (
         <IdentifyComponent
           profileId={session.payload.id}
           email={session.payload.email}

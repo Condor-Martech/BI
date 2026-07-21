@@ -75,6 +75,10 @@ services:
 
       BULL_BOARD_USER: ${BULL_BOARD_USER}
       BULL_BOARD_PASS: ${BULL_BOARD_PASS}
+
+      # --- IA / OpenAI (opcional; sin la key, /analysis devuelve 503 en runtime, no rompe el boot) ---
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_MODEL: ${OPENAI_MODEL:-gpt-4o-mini}
     depends_on:
       mongo: { condition: service_healthy }
       redis: { condition: service_healthy }

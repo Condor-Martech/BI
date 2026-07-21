@@ -97,6 +97,7 @@ export class UsersService {
       id: newUser._id,
       email: newUser.email,
       role: newUser.role,
+      name: newUser.name,
     });
     const welcomeEmailQueued = await this.enqueueWelcome(newUser, rawToken);
     return { user: newUser, access_token, welcomeEmailQueued };
@@ -137,7 +138,7 @@ export class UsersService {
         throw new UnauthorizedException('Credenciais de acesso inválidas');
       }
 
-      const token = this.authenticator.generate({ id: userFromDB.id, email: userFromDB.email, role: userFromDB.role });
+      const token = this.authenticator.generate({ id: userFromDB.id, email: userFromDB.email, role: userFromDB.role, name: userFromDB.name });
       const user = await this.findOne(userFromDB.id);
       await this.loginLog.registerLoginLog(userFromDB.id);
       this.events.trackLoginSuccess({
@@ -173,7 +174,7 @@ export class UsersService {
         throw new UnauthorizedException(`Nenhum usuário encontrado com esse número de cracha: ${islv}`);
       }
 
-      const token = this.authenticator.generate({ id: db._id, email: db.email, role: db.role });
+      const token = this.authenticator.generate({ id: db._id, email: db.email, role: db.role, name: db.name });
       await this.loginLog.registerLoginLog(db._id);
       this.events.trackLoginSuccess({
         userId: db._id?.toString(),
@@ -540,6 +541,7 @@ export class UsersService {
       id: matched._id,
       email: matched.email,
       role: matched.role,
+      name: matched.name,
     });
     await this.loginLog.registerLoginLog(matched._id);
 

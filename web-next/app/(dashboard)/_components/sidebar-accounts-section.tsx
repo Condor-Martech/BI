@@ -48,6 +48,20 @@ interface Props {
   defaultOpenAccountIds: string[];
 }
 
+const nameCollator = new Intl.Collator("pt-BR", { sensitivity: "base", numeric: true });
+
+// Power BI a veces devuelve nombres con caracteres invisibles al inicio (NBSP, zero-width
+// space/joiner/non-joiner, BOM) que rompen el orden alfabético. Los saco antes de comparar.
+const INVISIBLE_LEADING = /^[\s ​‌‍﻿]+/u;
+
+function sortKey(value: string): string {
+  return value.normalize("NFKC").replace(INVISIBLE_LEADING, "");
+}
+
+function sortByName<T extends { name: string }>(items: readonly T[]): T[] {
+  return [...items].sort((a, b) => nameCollator.compare(sortKey(a.name), sortKey(b.name)));
+}
+
 export function SidebarAccountsSection({ collapsed, defaultOpenAccountIds }: Props) {
   const { data, isLoading } = useMeSidebar();
   const [open, setOpen] = useState<Set<string>>(() => new Set(defaultOpenAccountIds));
@@ -67,6 +81,7 @@ export function SidebarAccountsSection({ collapsed, defaultOpenAccountIds }: Pro
   // USER recibe una única "cuenta" sintética con los workspaces ya deduplicados:
   // lo mostramos plano, sin el acordeón de cuenta (que solo aporta a privilegiados).
   const flat = !!data && data.length === 1;
+  const sortedAccounts = data ? sortByName(data) : [];
 
   return (
     <div className="space-y-1 p-2" aria-label="Meus workspaces">
@@ -84,15 +99,17 @@ export function SidebarAccountsSection({ collapsed, defaultOpenAccountIds }: Pro
         <p className="px-2 text-xs text-sidebar-foreground/60">Nenhum workspace disponível</p>
       ) : flat ? (
         <ul className="space-y-0.5" aria-label="Workspaces">
-          {data[0]!.workspaces.length === 0 ? (
+          {sortedAccounts[0]!.workspaces.length === 0 ? (
             <li className="px-2 py-1 text-xs text-sidebar-foreground/50">Nenhum workspace</li>
           ) : (
-            data[0]!.workspaces.map((ws) => <WorkspaceLink key={ws.id} ws={ws} />)
+            sortByName(sortedAccounts[0]!.workspaces).map((ws) => (
+              <WorkspaceLink key={ws.id} ws={ws} />
+            ))
           )}
         </ul>
       ) : (
         <ul className="space-y-0.5">
-          {data.map((account) => {
+          {sortedAccounts.map((account) => {
             const isOpen = open.has(account.id);
             return (
               <li key={account.id}>
@@ -128,7 +145,9 @@ export function SidebarAccountsSection({ collapsed, defaultOpenAccountIds }: Pro
                             Nenhum workspace
                           </li>
                         ) : (
-                          account.workspaces.map((ws) => <WorkspaceLink key={ws.id} ws={ws} />)
+                          sortByName(account.workspaces).map((ws) => (
+                            <WorkspaceLink key={ws.id} ws={ws} />
+                          ))
                         )}
                       </ul>
                     </motion.div>

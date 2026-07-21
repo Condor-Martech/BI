@@ -7,6 +7,27 @@ import { z } from "zod";
  * Accounts store Azure AD credentials per Power BI tenant.
  */
 
+/**
+ * Estado do último sync desta conta. Escrito pelo backend em
+ * `app/src/app/core/jobs/reportSync-consumer.ts` nos hooks OnQueueActive /
+ * Completed / Failed. Usado pela accounts/page.tsx pra pintar um badge com
+ * tooltip mostrando o último erro (se houver).
+ */
+export const syncStatusSchema = z
+  .object({
+    state: z.enum(["ok", "failed", "in_progress"]),
+    lastError: z.string().optional().nullable(),
+    lastErrorAt: z.union([z.string(), z.date()]).optional().nullable(),
+    lastSuccessAt: z.union([z.string(), z.date()]).optional().nullable(),
+    lastJobId: z.string().optional().nullable(),
+    attemptsMade: z.number().optional().nullable(),
+  })
+  .passthrough()
+  .nullable()
+  .optional();
+
+export type SyncStatus = z.infer<typeof syncStatusSchema>;
+
 export const accountSchema = z
   .object({
     _id: z.string(),
@@ -18,10 +39,15 @@ export const accountSchema = z
     token: z.string().optional(),
     /** Server returns userCount via getUserCount() on detail; on list it's derived too. */
     userCount: z.number().optional(),
+    /** Cantidad de workspaces (grupos PBI) asociados a la cuenta — derivado en findAllAccounts. */
+    groupCount: z.number().optional(),
+    /** Cantidad de relatórios PBI asociados a la cuenta — derivado en findAllAccounts. */
+    reportCount: z.number().optional(),
     users: z.array(z.string()).optional(),
     expiresIn: z.string().optional(),
     expiresOn: z.string().optional(),
     createdAt: z.union([z.string(), z.date()]).optional(),
+    syncStatus: syncStatusSchema,
   })
   .passthrough();
 

@@ -49,7 +49,13 @@ export class ReportSyncProducer {
       jobId,
       removeOnComplete: true,
       removeOnFail: { age: 3600 },
-      attempts: 1, // El sync es caro y no idempotente cleanly — preferimos fallar rápido y reintentar manualmente.
+      // 3 attempts con backoff exponencial 5s→10s→20s. Cubre hipos transitorios
+      // (throttling PowerBI, timeout de red, un AADSTS9002313 esporádico) sin
+      // intervención manual. Fallos permanentes (refresh_token revocado) tardan
+      // ~35s en fallar definitivamente — costo aceptable. Bull emite `failed`
+      // sólo al agotar attempts, así que el SSE no dispara `sync.failed` prematuro.
+      attempts: 3,
+      backoff: { type: 'exponential', delay: 5_000 },
     });
 
     return { jobId: String(job.id), accountID: data.accountID, dedup: false };

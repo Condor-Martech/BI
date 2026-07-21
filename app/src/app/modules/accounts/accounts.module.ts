@@ -8,12 +8,16 @@ import { EncryptionService } from '../../core/utils/encryption.service';
 import { BackupService } from '../../core/services/backup.service';
 import { UtilsModule } from '../../core/utils/utils.module';
 import { User, UserSchema } from '../users/user.entity';
+import { Group, GroupSchema } from '../groups/group.entity';
+import { Report, ReportSchema } from '../reports/report.entity';
 
 @Global()
 @Module({
   imports: [
     MongooseModule.forFeature([{ name: Account.name, schema: AccountSchema }]),
     MongooseModule.forFeature([{ name: User.name, schema: UserSchema }]),
+    MongooseModule.forFeature([{ name: Group.name, schema: GroupSchema }]),
+    MongooseModule.forFeature([{ name: Report.name, schema: ReportSchema }]),
     HttpModule,
     UtilsModule,
   ],

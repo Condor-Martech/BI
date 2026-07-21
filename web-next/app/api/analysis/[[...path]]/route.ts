@@ -15,3 +15,4 @@ async function handle(req: Request, ctx: Ctx) {
 
 export const GET = handle;
 export const POST = handle;
+export const DELETE = handle;

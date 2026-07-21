@@ -30,9 +30,23 @@ interface FavoriteWithReport {
   };
 }
 
+// Fallback cuando el JWT no trae `name` (tokens emitidos antes de que el backend
+// lo incluyera). Deriva del prefix del email (`francisco.araujo` → `Francisco
+// Araujo`): split por `.`/`_`/`-`, capitaliza cada palabra. Pierde acentos, pero
+// evita mostrar `francisco.araujo` crudo hasta el próximo re-login.
+function displayNameFromEmail(email: string | undefined): string {
+  const prefix = email?.split("@")[0];
+  if (!prefix) return "Usuário";
+  return prefix
+    .split(/[._-]+/)
+    .filter(Boolean)
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+    .join(" ");
+}
+
 export default async function Home() {
   const session = await requireSession();
-  const username = session.payload.email?.split("@")[0] ?? "Usuário";
+  const username = session.payload.name?.trim() || displayNameFromEmail(session.payload.email);
 
   let overview: Overview;
   let favorites: FavoriteWithReport[];

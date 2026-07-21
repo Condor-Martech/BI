@@ -1,7 +1,17 @@
 "use client";
 
-import { useCallback, useRef, useState } from "react";
-import { MoreHorizontal, Pencil, Plus, RefreshCw, Trash2 } from "lucide-react";
+import { useCallback, useMemo, useRef, useState } from "react";
+import {
+  Building2,
+  FileBarChart2,
+  LayoutGrid,
+  MoreHorizontal,
+  Pencil,
+  Plus,
+  RefreshCw,
+  Trash2,
+  Users,
+} from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 
@@ -22,16 +32,18 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import type { Account } from "@/lib/api/endpoints/accounts";
+import { TooltipProvider } from "@/components/ui/tooltip";
+import { accountsKeys, type Account } from "@/lib/api/endpoints/accounts";
 import { reportsKeys } from "@/lib/api/endpoints/reports";
 import { useAccounts, useDeleteAccount } from "@/lib/hooks/accounts";
 import { useSyncAccountReports, useSyncAllReports } from "@/lib/hooks/reports";
 import { useSyncEvents } from "@/lib/hooks/sync-events";
 
 import { DeleteConfirm } from "../users/_components/delete-confirm";
+import { StatCard } from "../_components/stat-card";
 
 import { AccountFormDialog } from "./_components/account-form-dialog";
-import { BackupRestore } from "./_components/backup-restore";
+import { SyncStatusBadge } from "./_components/sync-status-badge";
 
 const toastIdForJob = (jobId: string) => `sync:${jobId}`;
 
@@ -96,6 +108,8 @@ export default function AccountsPage() {
             return next;
           });
           qc.invalidateQueries({ queryKey: reportsKeys.all });
+          // Refetch accounts pra atualizar o `syncStatus` (badge some / vira "ok").
+          qc.invalidateQueries({ queryKey: accountsKeys.list() });
         } else if (e.type === "sync.failed") {
           toast.error(`Não foi possível sincronizar ${accountName}: ${e.data.error}`, { id });
           setActiveSyncs((prev) => {
@@ -103,6 +117,8 @@ export default function AccountsPage() {
             delete next[e.data.jobId];
             return next;
           });
+          // Refetch accounts pra que o badge "Falha" apareça com o tooltip do erro.
+          qc.invalidateQueries({ queryKey: accountsKeys.list() });
         }
       },
       [qc],
@@ -154,6 +170,24 @@ export default function AccountsPage() {
     Object.values(activeSyncs).includes(accountId);
   const isAnySyncRunning = Object.keys(activeSyncs).length > 0;
 
+  /**
+   * Totales agregados para las stat cards. `userCount` cae al largo del array
+   * `users` cuando el backend no lo denormaliza (mismo fallback que la fila
+   * de la tabla, línea del `<Badge>`). Se recalcula sólo cuando cambia el
+   * array de accounts — no en cada render.
+   */
+  const totals = useMemo(() => {
+    return accounts.reduce(
+      (acc, a) => {
+        acc.users += a.userCount ?? a.users?.length ?? 0;
+        acc.workspaces += a.groupCount ?? 0;
+        acc.reports += a.reportCount ?? 0;
+        return acc;
+      },
+      { users: 0, workspaces: 0, reports: 0 },
+    );
+  }, [accounts]);
+
   return (
     <div className="mx-auto max-w-6xl space-y-6 p-6">
       <header className="flex items-center justify-between">
@@ -182,14 +216,39 @@ export default function AccountsPage() {
         </div>
       </header>
 
+      <section className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <StatCard
+          icon={<Building2 className="h-6 w-6" />}
+          label="Contas"
+          value={accounts.length}
+        />
+        <StatCard
+          icon={<Users className="h-6 w-6" />}
+          label="Usuários"
+          value={totals.users}
+        />
+        <StatCard
+          icon={<LayoutGrid className="h-6 w-6" />}
+          label="Workspaces"
+          value={totals.workspaces}
+        />
+        <StatCard
+          icon={<FileBarChart2 className="h-6 w-6" />}
+          label="Relatórios"
+          value={totals.reports}
+        />
+      </section>
+
+      <TooltipProvider>
       <div className="rounded-md border border-border bg-card">
         <Table>
           <TableHeader>
             <TableRow>
               <TableHead>Nome</TableHead>
               <TableHead>E-mail Azure</TableHead>
-              <TableHead>Tenant ID</TableHead>
               <TableHead>Usuários</TableHead>
+              <TableHead>Workspaces</TableHead>
+              <TableHead>Relatórios</TableHead>
               <TableHead className="w-12" />
             </TableRow>
           </TableHeader>
@@ -198,7 +257,7 @@ export default function AccountsPage() {
               <>
                 {[...Array(2)].map((_, i) => (
                   <TableRow key={i}>
-                    <TableCell colSpan={5}>
+                    <TableCell colSpan={6}>
                       <Skeleton className="h-4 w-full" />
                     </TableCell>
                   </TableRow>
@@ -207,27 +266,35 @@ export default function AccountsPage() {
             )}
             {!isPending && error && (
               <TableRow>
-                <TableCell colSpan={5} className="text-center text-sm text-destructive">
+                <TableCell colSpan={6} className="text-center text-sm text-destructive">
                   Error: {(error as Error).message}
                 </TableCell>
               </TableRow>
             )}
             {!isPending && !error && accounts.length === 0 && (
               <TableRow>
-                <TableCell colSpan={5} className="text-center text-sm text-muted-foreground">
+                <TableCell colSpan={6} className="text-center text-sm text-muted-foreground">
                   Ainda não há contas BI carregadas.
                 </TableCell>
               </TableRow>
             )}
             {accounts.map((a) => (
               <TableRow key={a._id}>
-                <TableCell className="font-medium">{a.nameAccount}</TableCell>
-                <TableCell className="text-muted-foreground">{a.email}</TableCell>
-                <TableCell className="font-mono text-xs text-muted-foreground">
-                  {a.tenantId ?? "—"}
+                <TableCell className="font-medium">
+                  <div className="flex items-center gap-2">
+                    <span>{a.nameAccount}</span>
+                    <SyncStatusBadge status={a.syncStatus} />
+                  </div>
                 </TableCell>
+                <TableCell className="text-muted-foreground">{a.email}</TableCell>
                 <TableCell>
                   <Badge variant="secondary">{a.userCount ?? a.users?.length ?? 0}</Badge>
+                </TableCell>
+                <TableCell>
+                  <Badge variant="secondary">{a.groupCount ?? 0}</Badge>
+                </TableCell>
+                <TableCell>
+                  <Badge variant="secondary">{a.reportCount ?? 0}</Badge>
                 </TableCell>
                 <TableCell>
                   <DropdownMenu>
@@ -265,8 +332,7 @@ export default function AccountsPage() {
           </TableBody>
         </Table>
       </div>
-
-      <BackupRestore />
+      </TooltipProvider>
 
       <AccountFormDialog open={formOpen} onOpenChange={setFormOpen} account={editing} />
       <DeleteConfirm

@@ -21,40 +21,58 @@ export class GroupsService {
   ) { }
 
   async createAllGroupByAccount(accountId: string): Promise<any> {
+    // FETCH primeiro, destructive DEPOIS. Antes fazíamos removeAll() + deleteMany()
+    // + cache.delByPrefix() ANTES de chamar Azure — se PowerBI/refresh falhava, a
+    // conta ficava com 0 groups + 0 reports até o próximo sync bem-sucedido. Agora
+    // se refresh ou o GET /groups falham, o estado prévio do DB fica intacto e o
+    // erro sobe até o consumer para acionar retries do Bull (attempts:3, backoff).
+    const token = await this.accountService.getIdAccount(accountId);
+    const rawGroups: any[] = await this.getGroupsWithTokenRetry(token);
+
+    const groups: CreateGroupDto[] = rawGroups.map((item: any) => ({
+      groupIdPB: item.id,
+      accountId: token._id,
+      name: item.name,
+      isReadOnly: item.isReadOnly,
+      isOnDedicatedCapacity: item.isOnDedicatedCapacity,
+      type: item.type,
+    } as CreateGroupDto));
+
+    // Fetch bem-sucedido — só agora invalidamos o estado antigo.
+    await this.removeAll(accountId);
+    await this.reportModel.deleteMany({ accountID: accountId }).exec();
+    await this.cache.delByPrefix(CACHE_NS.GROUPS);
+    await this.cache.delByPrefix(CACHE_NS.REPORTS);
+
+    if (groups.length > 0) {
+      await this.createMany(groups);
+    }
+    return groups;
+  };
+
+  private async getGroupsWithTokenRetry(token: any): Promise<any[]> {
+    const url = `${process.env.POWER_BI_BASE_URL}/groups`;
+    const doGet = (bearer: string) =>
+      firstValueFrom(
+        this.http.get(url, {
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+            Authorization: `Bearer ${bearer}`,
+          },
+        }).pipe(map(res => res.data.value ?? [])),
+      );
+
     try {
-      await this.removeAll(accountId);
-      await this.reportModel.deleteMany({ accountID: accountId }).exec();
-      // Rebuild destrutivo: grupos e relatorios foram apagados — invalida
-      // os dois namespaces inteiros antes de recriar a partir do Power BI.
-      await this.cache.delByPrefix(CACHE_NS.GROUPS);
-      await this.cache.delByPrefix(CACHE_NS.REPORTS);
-      const token = await this.accountService.getIdAccount(accountId);
-      const results = [];
-      const config = {
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
-          Authorization: `Bearer ${token.token}`
-        },
-      };
-      const response = await firstValueFrom(this.http.get(`${process.env.POWER_BI_BASE_URL}/groups`, config)
-        .pipe(map(res => res.data.value)));
-      results.push(...response);
-      const groups: CreateGroupDto[] = results.map((item: any) => {
-        return {
-          groupIdPB: item.id,
-          accountId: token._id,
-          name: item.name,
-          isReadOnly: item.isReadOnly,
-          isOnDedicatedCapacity: item.isOnDedicatedCapacity,
-          type: item.type,
-        } as CreateGroupDto;
-      });
-      if (groups.length > 0) {
-        await this.createMany(groups);
-      }
-      return groups;
-    } catch (error) {
-      return { message: error.response.data };
+      return await doGet(token.token);
+    } catch (err: any) {
+      // 401 = token invalidado entre getIdAccount() e o HTTP call (janela pequena
+      // mas real: revocação por Azure, conditional access, etc.). Forçamos
+      // getNewAccessToken (bypass do threshold de 3-min) e reintentamos UMA vez.
+      if (err?.response?.status !== 401) throw err;
+      const refreshed: any = await this.accountService.getNewAccessToken(token.email);
+      const newToken = refreshed?.[0]?.token;
+      if (!newToken) throw err;
+      return await doGet(newToken);
     }
   };
   async createMany(createGroupDto: CreateGroupDto[]) {

@@ -42,18 +42,9 @@ export class ReportsService {
       if (!tokenFromDB || !tokenFromDB.token) {
         throw new NotFoundException(`Token not found for account ID ${accountId}`);
       }
-      const config = {
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
-          Authorization: `Bearer ${tokenFromDB.token}`
-        },
-      };
 
-      const response = await firstValueFrom(
-        this.http.get(`${process.env.POWER_BI_BASE_URL}/groups/${groupId}/reports`, config).pipe(
-          map(res => res.data.value)
-        )
-      );
+      const url = `${process.env.POWER_BI_BASE_URL}/groups/${groupId}/reports`;
+      const response = await this.fetchReportsWithTokenRetry(url, tokenFromDB);
 
       if (!response || !Array.isArray(response)) {
         throw new InternalServerErrorException('Invalid response from Power BI API');
@@ -64,6 +55,32 @@ export class ReportsService {
 
     } catch (error) {
       this.handleError(error);
+    }
+  }
+
+  private async fetchReportsWithTokenRetry(url: string, token: any): Promise<any[]> {
+    const doGet = (bearer: string) =>
+      firstValueFrom(
+        this.http.get(url, {
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+            Authorization: `Bearer ${bearer}`,
+          },
+        }).pipe(map(res => res.data.value)),
+      );
+
+    try {
+      return await doGet(token.token);
+    } catch (err: any) {
+      // 401 mid-sync: syncs longos (>55 min) ou revocação Azure entre iterações
+      // deixam alguns groups sem reports. Forçamos getNewAccessToken (bypass do
+      // threshold 3-min) e reintentamos UMA vez sem consumir attempts do Bull.
+      if (err?.response?.status !== 401) throw err;
+      this.logger.warn(`401 em ${url} — forçando refresh de token e reintentando`);
+      const refreshed: any = await this.accounts.getNewAccessToken(token.email);
+      const newToken = refreshed?.[0]?.token;
+      if (!newToken) throw err;
+      return await doGet(newToken);
     }
   }
 
@@ -208,6 +225,22 @@ export class ReportsService {
         .select('reportIdPB groupIdPB accountId name embedUrl createdAt');
       if (!result) {
         throw new NotFoundException(`Nenhum relatorio foi encontrado com ID : ${reportIdPB}`);
+      }
+      // O populate lê `token` direto do Mongo — sem forçar refresh de Azure,
+      // tokens vencidos ficam servindo ao frontend e o Power BI SDK responde
+      // "Access token has expired, resubmit with a new access token". Delegamos
+      // em getIdAccount() para reutilizar a lógica de refresh (threshold 3-min)
+      // e substituímos o token de cada Account populado pelo fresco.
+      const accounts: any[] = Array.isArray(result.accountID)
+        ? (result.accountID as any[])
+        : result.accountID
+          ? [result.accountID as any]
+          : [];
+      for (const acc of accounts) {
+        if (acc?._id) {
+          const fresh = await this.accounts.getIdAccount(String(acc._id));
+          if (fresh?.token) acc.token = fresh.token;
+        }
       }
       result.embedUrl = `${result.embedUrl}&filter=zUsuarios%2Femail%20eq%20%27${email}%27`;
       return result;

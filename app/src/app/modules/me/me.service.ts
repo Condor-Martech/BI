@@ -66,15 +66,14 @@ export class MeService {
 
     if (accounts.length === 0) return [];
 
-    const accountIds = accounts.map((a) => String(a._id));
-    const groups = await this.groupModel
-      .find({ accountId: { $in: accountIds } })
-      .select('_id groupIdPB accountId name')
-      .lean()
-      .exec();
-
     // MANAGER / ADMIN: árbol completo por cuenta (cada "cuenta" = credencial Azure).
     if (privileged) {
+      const accountIds = accounts.map((a) => String(a._id));
+      const groups = await this.groupModel
+        .find({ accountId: { $in: accountIds } })
+        .select('_id groupIdPB accountId name')
+        .lean()
+        .exec();
       const groupsByAccount = new Map<string, SidebarWorkspace[]>();
       for (const g of groups) {
         const key = String(g.accountId);
@@ -91,23 +90,34 @@ export class MeService {
       }));
     }
 
-    // USER: el sidebar no expone credenciales Azure, solo workspaces. Restringimos a
-    // los que tienen al menos un report permitido (directo ∪ grupo) y deduplicamos por
-    // pbWorkspaceId — el mismo workspace puede estar replicado en varias cuentas. El
-    // resultado es una vista plana (una sola "cuenta" sintética).
+    // USER: el sidebar no expone credenciales Azure, solo workspaces. La autoridad
+    // de permisos son reportsByPB + userGroups.reports — user.accountID NO define
+    // qué puede ver, es un mecanismo de LOAD BALANCING: Power BI bloquea al superar
+    // ~70 sesiones concurrentes con el mismo service account, así que los users se
+    // distribuyen entre N accounts Azure con licencias/permisos equivalentes sobre
+    // los mismos workspaces del tenant. Filtrar groups por accountId acá restringía
+    // por "qué pool de tokens le tocó al user" — cero relación con visibilidad. Un
+    // mismo workspace vive replicado bajo N cuentas; buscamos los groups por
+    // groupIdPB permitido y deduplicamos por pbWorkspaceId. Resultado plano
+    // (una sola "cuenta" sintética).
     const allowed = [...(await this.permissions.getAllowedReportIds(user))];
     if (allowed.length === 0) return [];
-    const allowedWorkspaces = new Set(
-      (
-        await this.reportModel.distinct('groupIdPB', { reportIdPB: { $in: allowed } })
-      ).map((id) => String(id)),
-    );
+    const allowedWorkspaces = (
+      await this.reportModel.distinct('groupIdPB', { reportIdPB: { $in: allowed } })
+    ).map((id) => String(id));
+    if (allowedWorkspaces.length === 0) return [];
+
+    const wsGroups = await this.groupModel
+      .find({ groupIdPB: { $in: allowedWorkspaces } })
+      .select('_id groupIdPB name')
+      .lean()
+      .exec();
 
     const seen = new Set<string>();
     const workspaces: SidebarWorkspace[] = [];
-    for (const g of groups) {
+    for (const g of wsGroups) {
       const wsId = String(g.groupIdPB);
-      if (!allowedWorkspaces.has(wsId) || seen.has(wsId)) continue;
+      if (seen.has(wsId)) continue;
       seen.add(wsId);
       workspaces.push({ id: String(g._id), pbWorkspaceId: g.groupIdPB, name: g.name });
     }

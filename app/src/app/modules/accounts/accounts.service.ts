@@ -5,6 +5,8 @@ import { CreateAccountDto } from './dto/create-account.dto';
 import { UpdateAccountDto } from './dto/update-account.dto';
 import { Account, AccountDocument } from './account.entity';
 import { User, UserDocument } from '../users/user.entity';
+import { Group, GroupsDocument } from '../groups/group.entity';
+import { Report, ReportDocument } from '../reports/report.entity';
 import { Model, Error as MongooseError } from 'mongoose';
 import { InjectModel } from '@nestjs/mongoose';
 import { HttpService } from '@nestjs/axios';
@@ -19,6 +21,8 @@ export class AccountsService {
   constructor(
     @InjectModel(Account.name) private accountModel: Model<AccountDocument>,
     @InjectModel(User.name) private userModel: Model<UserDocument>,
+    @InjectModel(Group.name) private groupModel: Model<GroupsDocument>,
+    @InjectModel(Report.name) private reportModel: Model<ReportDocument>,
     private readonly encryptionService: EncryptionService,
     private readonly http: HttpService,
     private readonly refreshToken: RefreshToken
@@ -78,7 +82,14 @@ export class AccountsService {
       const accounts = await this.accountModel.find();
       await Promise.all(
         accounts.map(async (account) => {
-          account.userCount = await this.getUserCount(account._id);
+          const [userCount, groupCount, reportCount] = await Promise.all([
+            this.getUserCount(account._id),
+            this.getGroupCount(account._id),
+            this.getReportCount(account._id),
+          ]);
+          account.userCount = userCount;
+          account.groupCount = groupCount;
+          account.reportCount = reportCount;
         }),
       );
       return accounts;
@@ -99,12 +110,17 @@ export class AccountsService {
   };
   async getBiAccount(email: string): Promise<any> {
     try {
-      const result = await this.accountModel.findOne({ email });
-      if (!result) {
+      const initial = await this.accountModel.findOne({ email });
+      if (!initial) {
         throw new NotFoundException(`Account with email: ${email} not found`);
       }
       await this.refreshToken.refresh(email);
-      return result;
+      // refresh() puede haber persistido un token nuevo vía getNewAccessToken().update() —
+      // `initial` fue capturado antes y tendría el token viejo. Re-leemos post-refresh
+      // para no filtrar tokens vencidos a los callers (Power BI responde 401
+      // "Access token has expired" al usarlo en el embed).
+      const fresh = await this.accountModel.findOne({ email });
+      return fresh ?? initial;
     } catch (error) {
       if (error instanceof MongooseError.CastError) {
         throw new BadRequestException(`${error.message}`);
@@ -118,12 +134,17 @@ export class AccountsService {
   };
   async getIdAccount(id: string): Promise<any> {
     try {
-      const account = await this.accountModel.findOne({ _id: id });
-      if (!account) {
+      const initial = await this.accountModel.findOne({ _id: id });
+      if (!initial) {
         throw new NotFoundException(`Account with ID ${id} not found`);
       }
-      await this.refreshToken.refresh(account.email);
-      return account;
+      await this.refreshToken.refresh(initial.email);
+      // refresh() puede haber persistido un token nuevo vía getNewAccessToken().update() —
+      // `initial` fue capturado antes y tendría el token viejo. Re-leemos post-refresh
+      // para no filtrar tokens vencidos a los callers (Power BI responde 401
+      // "Access token has expired" al usarlo en el embed).
+      const fresh = await this.accountModel.findOne({ _id: id });
+      return fresh ?? initial;
 
     } catch (error) {
       if (error instanceof MongooseError.CastError) {
@@ -145,9 +166,20 @@ export class AccountsService {
     if (!account) {
       throw new NotFoundException(`Account with email: ${email} not found`);
     }
+    if (!account.refreshToken) {
+      throw new ServiceUnavailableException(
+        `Conta ${email} sem refresh_token armazenado — recadastre via POST /accounts.`,
+      );
+    }
+    // Body idêntico ao do servidor legado em produção (`server-powerbi`) que
+    // funciona há meses. NÃO usar `account.clientSecret`: os valores gravados
+    // em Mongo são o Secret ID (GUID), não o Secret Value — Azure devolve
+    // AADSTS7000215 "Invalid client secret provided ... not the client secret ID".
+    // `AZURE_SCOPE2` já leva o resource embutido; enviar `resource` explícito
+    // conflita e não é necessário no endpoint v1.0 quando o scope traz o URL.
     const body = {
       grant_type: process.env.AZURE_GRANT_TYPE2,
-      scope: process.env.AZURE_SCOPE,
+      scope: process.env.AZURE_SCOPE2,
       refresh_token: account.refreshToken,
       client_id: account.clientId,
       client_secret: process.env.AZURE_CLIENT_SECRET,
@@ -307,6 +339,33 @@ export class AccountsService {
    */
   async getUserCount(accountId: string): Promise<number> {
     return this.userModel.countDocuments({ accountID: accountId });
+  }
+
+  /**
+   * Conteo de workspaces (grupos PBI) cacheados para una cuenta.
+   * Ojo: Group.accountId es camelCase con 'd' minúscula (group.entity.ts:16),
+   * distinto de Report.accountID y User.accountID que usan 'D' mayúscula.
+   */
+  async getGroupCount(accountId: string): Promise<number> {
+    return this.groupModel.countDocuments({ accountId });
+  }
+
+  /**
+   * Conteo de relatórios PBI cacheados para una cuenta.
+   *
+   * IMPORTANTE: NO usar `Report.accountID` como fuente de verdad. Data histórica
+   * de esa columna está corrupta — muchos reports quedaron apuntando a la cuenta
+   * con la que se corrió el sync original en vez de a la dueña real del workspace.
+   * Ejemplo real (2026-07): Postos tiene 4 workspaces y 83 reports por groupIdPB,
+   * pero `Report.accountID` los tiene todos apuntando a "BI".
+   *
+   * La fuente confiable es la relación por `groupIdPB`: contar los reports cuyos
+   * workspaces pertenecen a esta cuenta.
+   */
+  async getReportCount(accountId: string): Promise<number> {
+    const groupIds = await this.groupModel.distinct('groupIdPB', { accountId });
+    if (groupIds.length === 0) return 0;
+    return this.reportModel.countDocuments({ groupIdPB: { $in: groupIds } });
   }
 
   /**

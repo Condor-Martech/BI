@@ -1,11 +1,14 @@
 import { Inject, Injectable, Logger, forwardRef } from '@nestjs/common';
 import { OnQueueActive, OnQueueCompleted, OnQueueFailed, Process, Processor } from '@nestjs/bull';
+import { InjectModel } from '@nestjs/mongoose';
 import { Job } from 'bull';
+import { Model } from 'mongoose';
 
 import { GroupsService } from '../../modules/groups/groups.service';
 import { ReportsService } from '../../modules/reports/reports.service';
 import { NotificationsService } from '../../modules/notifications/notifications.service';
 import { EventsService } from '../../modules/events/events.service';
+import { Account, AccountDocument } from '../../modules/accounts/account.entity';
 import type { ReportSyncJobData } from './reportSync-producer';
 
 /**
@@ -34,7 +37,28 @@ export class ReportSyncConsumer {
     @Inject(forwardRef(() => ReportsService)) private readonly reportsService: ReportsService,
     private readonly notifications: NotificationsService,
     private readonly events: EventsService,
+    @InjectModel(Account.name) private readonly accountModel: Model<AccountDocument>,
   ) { }
+
+  /**
+   * Persiste o estado do sync na conta. A UI (accounts/page.tsx) lê `syncStatus`
+   * pra pintar um badge com tooltip mostrando o último erro. Silencia erros de
+   * update — não queremos que uma falha ao gravar o status abortar o job.
+   */
+  private async setSyncStatus(
+    accountID: string,
+    patch: Partial<AccountDocument['syncStatus']>,
+  ): Promise<void> {
+    try {
+      const current = await this.accountModel.findById(accountID).select('syncStatus').lean();
+      const merged = { ...(current?.syncStatus ?? {}), ...patch };
+      await this.accountModel.updateOne({ _id: accountID }, { $set: { syncStatus: merged } });
+    } catch (err) {
+      this.logger.warn(
+        `Falha ao atualizar syncStatus da conta ${accountID}: ${(err as Error)?.message ?? err}`,
+      );
+    }
+  }
 
   @Process('syncAccount')
   async syncAccount(job: Job<ReportSyncJobData>): Promise<void> {
@@ -100,17 +124,44 @@ export class ReportSyncConsumer {
   }
 
   @OnQueueActive()
-  onActive(job: Job<ReportSyncJobData>) {
+  async onActive(job: Job<ReportSyncJobData>) {
     this.logger.log(`Sync starting: account=${job.data.accountID} user=${job.data.userID} jobId=${job.id}`);
+    // attemptsMade fica em 0 até o primeiro throw — nosso "tentativa em curso" é +1.
+    await this.setSyncStatus(job.data.accountID, {
+      state: 'in_progress',
+      lastJobId: String(job.id),
+      attemptsMade: (job.attemptsMade ?? 0) + 1,
+    });
   }
 
   @OnQueueCompleted()
-  onCompleted(job: Job<ReportSyncJobData>) {
+  async onCompleted(job: Job<ReportSyncJobData>) {
     this.logger.log(`Sync completed: account=${job.data.accountID} jobId=${job.id}`);
+    await this.setSyncStatus(job.data.accountID, {
+      state: 'ok',
+      lastSuccessAt: new Date(),
+      lastError: undefined,
+      lastErrorAt: undefined,
+    });
   }
 
   @OnQueueFailed()
-  onFailed(job: Job<ReportSyncJobData>, err: Error) {
+  async onFailed(job: Job<ReportSyncJobData>, err: Error) {
     this.logger.error(`Sync failed: account=${job.data?.accountID} jobId=${job?.id}: ${err.message}`);
+    // Bull dispara este hook em CADA tentativa que falha, inclusive as que
+    // ainda vão ser retentadas. Só marcamos "failed" quando esgotaram os attempts —
+    // do contrário o badge da UI ficaria vermelho no meio de uma cadeia de retries.
+    const maxAttempts = job?.opts?.attempts ?? 1;
+    const attemptsMade = job?.attemptsMade ?? 0;
+    if (attemptsMade < maxAttempts) {
+      return;
+    }
+    if (!job?.data?.accountID) return;
+    await this.setSyncStatus(job.data.accountID, {
+      state: 'failed',
+      lastError: err?.message ?? 'Erro desconhecido',
+      lastErrorAt: new Date(),
+      attemptsMade,
+    });
   }
 }

@@ -74,8 +74,81 @@ export function PowerBIReport({ reportId, initialData }: PowerBIReportProps) {
       lastTokenRef.current = data.accountID.token;
 
       embedded.on("error", (event) => {
-        console.error("[PowerBIReport] SDK error:", event.detail);
-        setEmbedError("O visualizador do Power BI retornou um erro.");
+        // Diagnóstico agresivo: el SDK a veces envía event.detail como una
+        // instancia con getters, otras veces como plain object, y a veces
+        // vacío. Serializamos TODO el objeto (props enumerables + del prototype)
+        // en un snapshot inmutable para no depender del display del devtools.
+        const dump = (obj: unknown): Record<string, unknown> | unknown => {
+          if (!obj || typeof obj !== "object") return obj;
+          const out: Record<string, unknown> = {};
+          for (
+            let proto: object | null = obj as object;
+            proto && proto !== Object.prototype;
+            proto = Object.getPrototypeOf(proto)
+          ) {
+            for (const key of Object.getOwnPropertyNames(proto)) {
+              if (key === "constructor") continue;
+              try {
+                const value = (obj as Record<string, unknown>)[key];
+                if (typeof value !== "function" && !(key in out)) {
+                  out[key] = value;
+                }
+              } catch {
+                out[key] = "<throw on access>";
+              }
+            }
+          }
+          return out;
+        };
+
+        const detail = event?.detail as
+          | {
+              message?: string;
+              detailedMessage?: string;
+              errorCode?: string;
+              level?: unknown;
+              technicalDetails?: unknown;
+            }
+          | undefined;
+
+        // Snapshot ANTES de cualquier otra lectura — evita que un getter que
+        // muta o que devuelve undefined en la segunda invocación nos engañe.
+        const snapshot = dump(detail);
+        const message = detail?.message;
+        const errorCode = detail?.errorCode;
+        const hasSignal = Boolean(message || errorCode);
+
+        // Log crudo con console.dir muestra el objeto real (getters incluidos)
+        // sin depender de la serialización que hace console.log.
+        console.groupCollapsed(
+          `[PowerBIReport] SDK error event (hasSignal=${hasSignal}, code=${errorCode ?? "?"})`,
+        );
+        console.log("event:", event);
+        console.log("event.detail (dir):");
+        console.dir(detail);
+        console.log("snapshot:", snapshot);
+        console.log("snapshot JSON:", (() => {
+          try { return JSON.stringify(snapshot, null, 2); }
+          catch (e) { return `<unserializable: ${(e as Error).message}>`; }
+        })());
+        console.groupEnd();
+
+        // TokenExpired: el token de embed venció. Recuperable — el backend
+        // refresca on-demand vía RefreshToken.refresh(). Forzamos refetch del
+        // hook para pedir un nuevo GET /reports/:id, y el useEffect de
+        // setAccessToken lo aplicará al iframe sin re-montar.
+        if (errorCode === "TokenExpired") {
+          console.warn("[PowerBIReport] TokenExpired — solicitando token novo");
+          setEmbedError("Renovando sessão do Power BI...");
+          void refetch().then(() => {
+            setEmbedError(null);
+          });
+          return;
+        }
+
+        if (hasSignal) {
+          setEmbedError(message ?? `Power BI: ${errorCode}`);
+        }
       });
     });
 

@@ -7,7 +7,11 @@ import { Model } from "mongoose";
 export interface authenticationData {
     id: string,
     email: string,
-    role: string
+    role: string,
+    // Opcional: incluido en tokens nuevos para que el frontend muestre el nombre
+    // real ("Francisco Araújo") en vez de derivarlo del email. Tokens antiguos no
+    // lo tienen — el frontend cae al fallback derivado del email hasta re-login.
+    name?: string,
 }
 
 @Injectable()

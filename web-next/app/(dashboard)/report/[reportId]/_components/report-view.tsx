@@ -1,12 +1,15 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useOpenPanel } from "@openpanel/nextjs";
 import { ChartBar, ChevronLeft, Database, Folder, Sparkles } from "lucide-react";
 
 import type { ReportDetail } from "@/lib/api/endpoints/reports";
+import { useFullscreen } from "@/lib/hooks/use-fullscreen";
+import { cn } from "@/lib/utils";
 
 import { FavouriteButton } from "./favourite-button";
+import { FullscreenButton } from "./fullscreen-button";
 import { PowerBIReport } from "./power-bi-report";
 import { AnalysisPanel } from "./analysis-panel";
 
@@ -33,6 +36,8 @@ export function ReportView({
   chatIaEnabled: boolean;
 }) {
   const [collapsed, setCollapsed] = useState(true);
+  const embedSlotRef = useRef<HTMLDivElement>(null);
+  const { isFullscreen, toggle: toggleFullscreen } = useFullscreen(embedSlotRef);
 
   const accountName = detail.accountID.nameAccount ?? detail.accountID.email ?? "Cuenta";
 
@@ -78,13 +83,23 @@ export function ReportView({
 
           <div className="flex items-center gap-2">
             <FavouriteButton reportIdPB={detail.reportIdPB} />
+            <FullscreenButton
+              isFullscreen={isFullscreen}
+              onToggle={() => void toggleFullscreen()}
+            />
           </div>
         </div>
       </header>
 
       <div className="flex flex-1 overflow-hidden bg-muted/30">
         {/* Stable embed slot — never moves, never re-mounts on toggle. */}
-        <div className="min-w-0 flex-1 p-6">
+        <div
+          ref={embedSlotRef}
+          className={cn(
+            "min-w-0 flex-1",
+            isFullscreen ? "bg-background p-0" : "p-6",
+          )}
+        >
           <PowerBIReport reportId={detail.reportIdPB} initialData={detail} />
         </div>
 

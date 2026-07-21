@@ -14,6 +14,10 @@ export interface JwtPayload {
   id?: string;
   email?: string;
   role?: string;
+  // Presente en tokens emitidos después de agregar `name` a `authenticationData`
+  // en el backend. Tokens antiguos no lo tienen — el caller debe caer a un
+  // fallback (ej: derivar del email) hasta que el user haga re-login.
+  name?: string;
   [key: string]: unknown;
 }
 
