@@ -13,6 +13,8 @@ import { User, UserSchema } from './user.entity';
 import { UsersService } from './users.service';
 import { UserGroupSchema, UserGroups } from '../user-groups/user-group.entity';
 import { AccountsModule } from '../accounts/accounts.module';
+import { AdminAllowlistGuard } from '../../core/auth/admin-allowlist.guard';
+import { SuperAdminGuard } from '../../core/auth/super-admin.guard';
 
 @Global()
 @Module({
@@ -33,7 +35,7 @@ import { AccountsModule } from '../accounts/accounts.module';
     forwardRef(() => JobModule),
   ],
   controllers: [UsersController],
-  providers: [UsersService, Authenticator],
+  providers: [UsersService, Authenticator, AdminAllowlistGuard, SuperAdminGuard],
   exports: [UsersService]
 })
 export class UsersModule { }

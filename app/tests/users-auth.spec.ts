@@ -12,6 +12,7 @@ import { LoginLogService } from '../src/app/modules/login-log/login-log.service'
 import { AccountsService } from '../src/app/modules/accounts/accounts.service';
 import { ReportsService } from '../src/app/modules/reports/reports.service';
 import { UsersController } from '../src/app/modules/users/users.controller';
+import { AuditLogService } from '../src/app/modules/audit-log/audit-log.service';
 import { UserGroups } from '../src/app/modules/user-groups/user-group.entity';
 import { Authenticator } from '../src/app/core/utils/authenticator';
 import { Filter } from '../src/app/modules/filters/entities/filter.entity';
@@ -43,6 +44,7 @@ describe('UsersController.create — restrição de role elevado', () => {
       providers: [
         { provide: UsersService, useValue: usersService },
         { provide: ReportsService, useValue: { filterGroups: jest.fn() } },
+        { provide: AuditLogService, useValue: { emit: jest.fn() } },
       ],
     })
       .overrideGuard(JwtAuthGuard)

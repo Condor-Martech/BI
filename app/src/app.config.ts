@@ -33,6 +33,7 @@ const REQUIRED_ENV_VARS = [
   // Basic-auth obrigatório no Bull Board (/admin/queues).
   "BULL_BOARD_USER",
   "BULL_BOARD_PASS",
+  "SUPER_ADMIN_EMAIL",
 ];
 
 function validateEnv(config: Record<string, unknown>): Record<string, unknown> {

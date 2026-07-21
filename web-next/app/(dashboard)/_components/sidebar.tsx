@@ -8,8 +8,11 @@ import {
   ChevronLeft,
   HelpCircle,
   Home,
+  KeyRound,
   LayoutDashboard,
   Settings,
+  ShieldCheck,
+  UserCog,
   type LucideIcon,
 } from "lucide-react";
 
@@ -39,18 +42,42 @@ const NAV: ReadonlyArray<NavItem> = [
 
 const COOKIE_NAME = "bi_sidebar_collapsed";
 
+interface AdminNavItem {
+  href: string;
+  label: string;
+  icon: LucideIcon;
+  superOnly?: boolean;
+}
+
+const ADMIN_NAV: ReadonlyArray<AdminNavItem> = [
+  { href: "/admin/reset-password", label: "Reset de senha", icon: KeyRound },
+  { href: "/admin/impersonate", label: "Ver como usuário", icon: UserCog },
+  { href: "/admin/allowlist", label: "Gestão de acessos admin", icon: ShieldCheck, superOnly: true },
+];
+
 interface SidebarProps {
   role: Role;
   defaultCollapsed: boolean;
   defaultOpenAccountIds: string[];
+  isSuperAdmin: boolean;
+  isAllowedAdmin: boolean;
 }
 
-export function Sidebar({ role, defaultCollapsed, defaultOpenAccountIds }: SidebarProps) {
+export function Sidebar({
+  role,
+  defaultCollapsed,
+  defaultOpenAccountIds,
+  isSuperAdmin,
+  isAllowedAdmin,
+}: SidebarProps) {
   const [collapsed, setCollapsed] = useState(defaultCollapsed);
   const pathname = usePathname();
 
   const canBroadcast = isOwner(role);
   const visibleNav = NAV.filter((item) => !item.roles || item.roles.includes(role));
+  const visibleAdminNav = isAllowedAdmin
+    ? ADMIN_NAV.filter((item) => !item.superOnly || isSuperAdmin)
+    : [];
 
   function toggle() {
     const next = !collapsed;
@@ -123,6 +150,39 @@ export function Sidebar({ role, defaultCollapsed, defaultOpenAccountIds }: Sideb
             collapsed={collapsed}
             defaultOpenAccountIds={defaultOpenAccountIds}
           />
+        </>
+      )}
+      {visibleAdminNav.length > 0 && (
+        <>
+          <Separator className="bg-sidebar-border" />
+          <nav className="space-y-0.5 p-2" aria-label="Ferramentas admin">
+            {!collapsed && (
+              <p className="px-2 pb-1 text-[10px] uppercase tracking-wider text-sidebar-foreground/60">
+                Ferramentas admin
+              </p>
+            )}
+            {visibleAdminNav.map(({ href, label, icon: Icon }) => {
+              const active = pathname === href || pathname.startsWith(`${href}/`);
+              return (
+                <Link
+                  key={href}
+                  href={href}
+                  title={collapsed ? label : undefined}
+                  aria-current={active ? "page" : undefined}
+                  className={cn(
+                    "relative flex h-8 items-center rounded-md text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                    collapsed ? "justify-center" : "gap-2 px-2",
+                    active
+                      ? "bg-sidebar-accent text-sidebar-accent-foreground"
+                      : "text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
+                  )}
+                >
+                  <Icon className="h-3.5 w-3.5 shrink-0" />
+                  {!collapsed && <span className="truncate">{label}</span>}
+                </Link>
+              );
+            })}
+          </nav>
         </>
       )}
       </div>

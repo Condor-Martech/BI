@@ -3,9 +3,11 @@ import { cookies } from "next/headers";
 import { IdentifyComponent } from "@openpanel/nextjs";
 
 import { SdCredit } from "@/components/ui/sd-credit";
+import { currentUserIsAllowedAdmin, currentUserIsSuperAdmin } from "@/lib/auth/admin";
 import { getSession } from "@/lib/auth/session";
 
 import { CommandPalette } from "./_components/command-palette";
+import { ImpersonationBanner } from "./_components/impersonation-banner";
 import { NotificationStreamMount } from "./_components/notification-stream-mount";
 import { SessionExpiryBanner } from "./_components/session-expiry-banner";
 import { Sidebar } from "./_components/sidebar";
@@ -22,8 +24,13 @@ export default async function DashboardLayout({ children }: { children: React.Re
     .map((s) => s.trim())
     .filter(Boolean);
 
+  const isSuperAdminUser = await currentUserIsSuperAdmin();
+  const isAllowedAdminUser = isSuperAdminUser || (await currentUserIsAllowedAdmin());
+
   return (
-    <div className="flex h-screen">
+    <>
+      <ImpersonationBanner />
+      <div className="flex h-screen">
       {/* OpenPanel: identifica al usuario logueado → "usuarios conectados" en tiempo real.
           Guard con el mismo env var que monta <OpenPanelComponent> en el root layout —
           sin el script cargado, window.op no existe y este componente explota. */}
@@ -48,6 +55,8 @@ export default async function DashboardLayout({ children }: { children: React.Re
         role={role}
         defaultCollapsed={defaultCollapsed}
         defaultOpenAccountIds={defaultOpenAccountIds}
+        isSuperAdmin={isSuperAdminUser}
+        isAllowedAdmin={isAllowedAdminUser}
       />
 
       <main className="flex-1 overflow-auto bg-background">
@@ -69,6 +78,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
           </footer>
         </div>
       </main>
-    </div>
+      </div>
+    </>
   );
 }

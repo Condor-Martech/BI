@@ -40,6 +40,13 @@ export const AUDIT_ACTIONS = {
   MAP_CREATE: 'map.create',
   MAP_UPDATE: 'map.update',
   MAP_DELETE: 'map.delete',
+
+  // RESET_BY_ADMIN: admin gera uma senha aleatória e a entrega manualmente ao usuário.
+  // Distinto de USER_PASSWORD_CHANGED_BY_ADMIN, onde o admin define uma senha à sua escolha.
+  USER_PASSWORD_RESET_BY_ADMIN: 'user.password_reset_by_admin',
+  USER_IMPERSONATED: 'user.impersonated',
+  ADMIN_ALLOWLIST_ADDED: 'admin.allowlist_added',
+  ADMIN_ALLOWLIST_REMOVED: 'admin.allowlist_removed',
 } as const;
 
 export type AuditAction = (typeof AUDIT_ACTIONS)[keyof typeof AUDIT_ACTIONS];

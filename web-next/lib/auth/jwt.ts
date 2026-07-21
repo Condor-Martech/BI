@@ -27,7 +27,12 @@ function base64UrlDecode(input: string): string | null {
       .replace(/-/g, "+")
       .replace(/_/g, "/")
       .padEnd(input.length + ((4 - (input.length % 4)) % 4), "=");
-    return atob(padded);
+    const binary = atob(padded);
+    // atob returns a "binary string" (one char per byte). To recover UTF-8
+    // characters like `é` (2 bytes 0xC3 0xA9) we must re-decode the bytes.
+    // Without this, `Héctor` shows up as `HÃ©ctor` (mojibake).
+    const bytes = Uint8Array.from(binary, (c) => c.charCodeAt(0));
+    return new TextDecoder("utf-8").decode(bytes);
   } catch {
     return null;
   }
