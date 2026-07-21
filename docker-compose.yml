@@ -1,0 +1,57 @@
+# Portainer stack for legacy BI (NestJS API + Next.js dashboard).
+#
+# Deploy in Portainer:
+#   1. Settings → Registries → add GHCR (URL: ghcr.io, user: <github-user>, password: <PAT with read:packages>).
+#   2. Stacks → Add stack → Web editor → paste this file.
+#   3. In "Environment variables" pane below the editor, add the keys listed in
+#      app.env.example (or load the file). APP_TAG/WEB_TAG are optional — leave
+#      empty to use :latest.
+#   4. Deploy.
+#
+# To roll a version: edit the stack, set APP_TAG=sha-abc1234 (or v1.2.3), Update stack.
+
+name: bi-legacy
+
+services:
+  mongo:
+    image: mongo:7
+    restart: unless-stopped
+    volumes:
+      - mongo-data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    ports: ["27017:27017"]  # uncomment ONLY for host-side migrations/debug
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+    ports: ["6379:6379"]
+
+  mongo-express:
+    image: mongo-express:1
+    restart: unless-stopped
+    depends_on:
+      mongo:
+        condition: service_healthy
+    environment:
+      ME_CONFIG_MONGODB_SERVER: mongo
+      ME_CONFIG_MONGODB_PORT: 27017
+      ME_CONFIG_BASICAUTH_USERNAME: ${MONGO_EXPRESS_USER:-admin}
+      ME_CONFIG_BASICAUTH_PASSWORD: ${MONGO_EXPRESS_PASSWORD:-admin}
+    ports: ["5525:8081"]
+
+volumes:
+  mongo-data:
+  redis-data:
