@@ -16,6 +16,7 @@ import { UpdateUserDto } from './dto/update-user.dto';
 import { LoginUserDto } from './dto/login-user.dto';
 import { ListUsersDto } from './dto/list-users.dto';
 import { AdminResetPasswordDto, AdminResetPasswordResponseDto } from './dto/admin-reset-password.dto';
+import { AdminImpersonateDto, AdminImpersonateResponseDto } from './dto/admin-impersonate.dto';
 import { UsersService } from './users.service';
 import { AuditLogService } from '../audit-log/audit-log.service';
 import { AUDIT_ACTIONS, AUDIT_RESOURCE_TYPES } from '../audit-log/audit-log.constants';
@@ -333,6 +334,31 @@ export class UsersController {
       resourceId: null,
       actor: { userId: String(actor.id), email: actor.email, role: actor.role },
       metadata: { targetEmail: dto.email },
+    });
+    return result;
+  }
+
+  @Post('admin/impersonate')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, AdminAllowlistGuard)
+  @ApiOperation({ summary: 'Gera um JWT temporário (1h) para o admin ver o sistema como outro usuário' })
+  @ApiOkResponse({ type: AdminImpersonateResponseDto })
+  @Header('Cache-Control', 'no-store')
+  async adminImpersonate(
+    @Req() req: Request,
+    @Body() dto: AdminImpersonateDto,
+  ): Promise<AdminImpersonateResponseDto> {
+    const actor = (req as any).user;
+    if (String(actor.email).toLowerCase() === dto.email.toLowerCase()) {
+      throw new BadRequestException('Você não pode impersonar a si mesmo');
+    }
+    const result = await this.usersService.adminGenerateImpersonationToken(dto.email);
+    this.auditLog.emit({
+      action: AUDIT_ACTIONS.USER_IMPERSONATED,
+      resourceType: AUDIT_RESOURCE_TYPES.USER,
+      resourceId: null,
+      actor: { userId: String(actor.id), email: actor.email, role: actor.role },
+      metadata: { targetEmail: dto.email, tokenExp: result.exp },
     });
     return result;
   }
