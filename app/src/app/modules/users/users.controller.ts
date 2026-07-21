@@ -9,6 +9,7 @@ import { ReportsService } from '../reports/reports.service';
 import { JwtAuthGuard } from '../../core/auth/auth.guard';
 import { RolesGuard } from '../../core/auth/roles.guard';
 import { AdminAllowlistGuard } from '../../core/auth/admin-allowlist.guard';
+import { SuperAdminGuard } from '../../core/auth/super-admin.guard';
 import { ChangePasswordDto } from './dto/change-password.dto';
 import { ChangeUserAccountDto } from './dto/change-user-account.dto';
 import { SetPasswordDto } from './dto/set-password.dto';
@@ -361,6 +362,63 @@ export class UsersController {
       metadata: { targetEmail: dto.email, tokenExp: result.exp },
     });
     return result;
+  }
+
+  @Get('admin/allowlist/me')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, AdminAllowlistGuard)
+  @ApiOperation({ summary: 'Verifica se o usuário atual está autorizado para ferramentas admin' })
+  async allowlistMe(): Promise<{ allowed: true }> {
+    return { allowed: true };
+  }
+
+  @Get('admin/allowlist')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, SuperAdminGuard)
+  @ApiOperation({ summary: 'Lista usuários com acesso a ferramentas admin (super admin only)' })
+  async allowlistList(): Promise<{ items: Array<{ id: string; email: string; name: string; role: string }> }> {
+    const items = await this.usersService.allowlistList();
+    return { items };
+  }
+
+  @Post('admin/allowlist')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, SuperAdminGuard)
+  @ApiOperation({ summary: 'Dá acesso admin a um usuário existente (super admin only)' })
+  async allowlistAdd(
+    @Req() req: Request,
+    @Body() dto: AdminImpersonateDto,
+  ): Promise<{ ok: true }> {
+    const actor = (req as any).user;
+    await this.usersService.allowlistAdd(dto.email);
+    this.auditLog.emit({
+      action: AUDIT_ACTIONS.ADMIN_ALLOWLIST_ADDED,
+      resourceType: AUDIT_RESOURCE_TYPES.USER,
+      resourceId: null,
+      actor: { userId: String(actor.id), email: actor.email, role: actor.role },
+      metadata: { targetEmail: dto.email },
+    });
+    return { ok: true };
+  }
+
+  @Delete('admin/allowlist/:email')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, SuperAdminGuard)
+  @ApiOperation({ summary: 'Remove o acesso admin de um usuário (super admin only)' })
+  async allowlistRemove(
+    @Req() req: Request,
+    @Param('email') email: string,
+  ): Promise<{ ok: true }> {
+    const actor = (req as any).user;
+    await this.usersService.allowlistRemove(email);
+    this.auditLog.emit({
+      action: AUDIT_ACTIONS.ADMIN_ALLOWLIST_REMOVED,
+      resourceType: AUDIT_RESOURCE_TYPES.USER,
+      resourceId: null,
+      actor: { userId: String(actor.id), email: actor.email, role: actor.role },
+      metadata: { targetEmail: email },
+    });
+    return { ok: true };
   }
 
   @Delete('delete/:id')
