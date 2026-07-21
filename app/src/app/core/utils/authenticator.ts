@@ -43,9 +43,10 @@ export class Authenticator {
         }
     }
 
-    public generate(input: authenticationData): string {
+    public generate(input: authenticationData, expiresIn?: string): string {
+        const ttl = expiresIn || process.env.JWT_EXPIRES_IN || '20h';
         const token = jwt.sign(input, process.env.JWT_SECRET as string, {
-            expiresIn: process.env.JWT_EXPIRES_IN || '20h',
+            expiresIn: ttl,
         });
         return token;
     }
