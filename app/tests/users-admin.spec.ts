@@ -116,4 +116,48 @@ describe('UsersService — admin operations', () => {
       await expect(service.adminGenerateImpersonationToken('nope@x.com')).rejects.toThrow(NotFoundException);
     });
   });
+
+  describe('allowlist CRUD', () => {
+    const original = process.env.SUPER_ADMIN_EMAIL;
+    beforeAll(() => { process.env.SUPER_ADMIN_EMAIL = 'admin@condor.com.br'; });
+    afterAll(() => { process.env.SUPER_ADMIN_EMAIL = original; });
+
+    it('list returns users with isAdminAllowlist=true', async () => {
+      userModel.find = jest.fn().mockReturnValue({
+        select: jest.fn().mockReturnValue({
+          lean: jest.fn().mockResolvedValue([
+            { _id: 'u1', email: 'a@x.com', name: 'A', role: 'admin' },
+          ]),
+        }),
+      }) as any;
+      const items = await service.allowlistList();
+      expect(userModel.find).toHaveBeenCalledWith({ isAdminAllowlist: true });
+      expect(items).toEqual([{ id: 'u1', email: 'a@x.com', name: 'A', role: 'admin' }]);
+    });
+
+    it('add sets flag=true and throws 404 if user missing', async () => {
+      userModel.findOne.mockResolvedValueOnce({ _id: 'u1', email: 'a@x.com' });
+      userModel.updateOne.mockResolvedValue({ acknowledged: true });
+      await service.allowlistAdd('a@x.com');
+      expect(userModel.updateOne).toHaveBeenCalledWith(
+        { _id: 'u1' },
+        { $set: { isAdminAllowlist: true } },
+      );
+
+      userModel.findOne.mockResolvedValueOnce(null);
+      await expect(service.allowlistAdd('missing@x.com')).rejects.toThrow(NotFoundException);
+    });
+
+    it('remove sets flag=false and rejects removing the super admin', async () => {
+      userModel.findOne.mockResolvedValue({ _id: 'u1', email: 'other@x.com' });
+      userModel.updateOne.mockResolvedValue({ acknowledged: true });
+      await service.allowlistRemove('other@x.com');
+      expect(userModel.updateOne).toHaveBeenCalledWith(
+        { _id: 'u1' },
+        { $set: { isAdminAllowlist: false } },
+      );
+
+      await expect(service.allowlistRemove('admin@condor.com.br')).rejects.toThrow(/super admin/i);
+    });
+  });
 });

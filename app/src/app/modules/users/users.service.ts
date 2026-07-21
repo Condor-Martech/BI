@@ -550,6 +550,39 @@ export class UsersService {
     };
   }
 
+  async allowlistList(): Promise<Array<{ id: string; email: string; name: string; role: string }>> {
+    const users = await this.userModel
+      .find({ isAdminAllowlist: true })
+      .select({ email: 1, name: 1, role: 1 })
+      .lean();
+    return users.map((u: any) => ({
+      id: String(u._id),
+      email: u.email,
+      name: u.name,
+      role: u.role,
+    }));
+  }
+
+  async allowlistAdd(email: string): Promise<void> {
+    const user = await this.userModel.findOne({ email });
+    if (!user) {
+      throw new NotFoundException(`Usuário não encontrado: ${email}. Crie o usuário primeiro.`);
+    }
+    await this.userModel.updateOne({ _id: user._id }, { $set: { isAdminAllowlist: true } });
+  }
+
+  async allowlistRemove(email: string): Promise<void> {
+    const superAdmin = (process.env.SUPER_ADMIN_EMAIL ?? '').toLowerCase().trim();
+    if (email.toLowerCase().trim() === superAdmin) {
+      throw new BadRequestException('Não é possível remover o super admin da allowlist');
+    }
+    const user = await this.userModel.findOne({ email });
+    if (!user) {
+      throw new NotFoundException(`Usuário não encontrado: ${email}`);
+    }
+    await this.userModel.updateOne({ _id: user._id }, { $set: { isAdminAllowlist: false } });
+  }
+
   async setPassword(dto: SetPasswordDto): Promise<UserResponseDto> {
     // Candidatos: users com convite ainda vigente. Conjunto pequeno (onboardings das últimas 48h).
     // Se o volume crescer, indexar por prefixo do token (primeiros N chars como lookup key).
