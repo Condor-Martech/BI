@@ -54,6 +54,9 @@ export class User {
     @Prop({ default: false })
     chatIaEnabled?: boolean;
 
+    @Prop({ type: Boolean, default: false, index: true })
+    isAdminAllowlist: boolean;
+
 
     constructor(user?: Partial<User>) {
         this.name = user?.name;
