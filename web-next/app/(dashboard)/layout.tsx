@@ -6,6 +6,7 @@ import { SdCredit } from "@/components/ui/sd-credit";
 import { getSession } from "@/lib/auth/session";
 
 import { CommandPalette } from "./_components/command-palette";
+import { ImpersonationBanner } from "./_components/impersonation-banner";
 import { NotificationStreamMount } from "./_components/notification-stream-mount";
 import { SessionExpiryBanner } from "./_components/session-expiry-banner";
 import { Sidebar } from "./_components/sidebar";
@@ -23,7 +24,9 @@ export default async function DashboardLayout({ children }: { children: React.Re
     .filter(Boolean);
 
   return (
-    <div className="flex h-screen">
+    <>
+      <ImpersonationBanner />
+      <div className="flex h-screen">
       {/* OpenPanel: identifica al usuario logueado → "usuarios conectados" en tiempo real.
           Guard con el mismo env var que monta <OpenPanelComponent> en el root layout —
           sin el script cargado, window.op no existe y este componente explota. */}
@@ -69,6 +72,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
           </footer>
         </div>
       </main>
-    </div>
+      </div>
+    </>
   );
 }
