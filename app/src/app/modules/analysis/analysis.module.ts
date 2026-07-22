@@ -9,6 +9,7 @@ import { DaxGuard } from './services/dax-guard.service';
 import { ReportAnalysis, ReportAnalysisSchema } from './report-analysis.entity';
 import { AnalysisConversation, AnalysisConversationSchema } from './analysis-conversation.entity';
 import { Report, ReportSchema } from '../reports/report.entity';
+import { Group, GroupSchema } from '../groups/group.entity';
 
 /**
  * Módulo aditivo de análise com IA de relatórios Power BI.
@@ -27,6 +28,7 @@ import { Report, ReportSchema } from '../reports/report.entity';
       { name: ReportAnalysis.name, schema: ReportAnalysisSchema },
       { name: AnalysisConversation.name, schema: AnalysisConversationSchema },
       { name: Report.name, schema: ReportSchema },
+      { name: Group.name, schema: GroupSchema },
     ]),
   ],
   controllers: [AnalysisController],

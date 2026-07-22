@@ -14,6 +14,7 @@ import { AccountsService } from '../accounts/accounts.service';
 import { CacheService } from '../../core/cache/cache.service';
 import { CACHE_TTL } from '../../core/cache/cache.keys';
 import { Report, ReportDocument } from '../reports/report.entity';
+import { Group, GroupsDocument } from '../groups/group.entity';
 import { ReportAnalysis, ReportAnalysisDocument } from './report-analysis.entity';
 import { AnalysisConversation, AnalysisConversationDocument } from './analysis-conversation.entity';
 import { OpenAiService } from './services/openai.service';
@@ -52,6 +53,7 @@ export class AnalysisService {
     @InjectModel(AnalysisConversation.name)
     private readonly conversationModel: Model<AnalysisConversationDocument>,
     @InjectModel(Report.name) private readonly reportModel: Model<ReportDocument>,
+    @InjectModel(Group.name) private readonly groupModel: Model<GroupsDocument>,
     private readonly accounts: AccountsService,
     private readonly powerBi: PowerBiQueryService,
     private readonly openai: OpenAiService,
@@ -322,12 +324,24 @@ export class AnalysisService {
       throw new BadRequestException('Relatório sem groupIdPB — não é possível analisar.');
     }
 
-    const accountRef: any = Array.isArray(report.accountID) ? report.accountID[0] : report.accountID;
-    if (!accountRef) {
-      throw new BadRequestException('Relatório sem conta BI associada — não é possível analisar.');
+    // Fonte de verdade da conta = Group.accountId (workspace), NÃO Report.accountID.
+    // Report.accountID foi desenhado como load-balancer de tokens de EMBED (Power BI
+    // limita ~70 sessões concurrentes por principal) e pode apontar a qualquer conta
+    // do tenant. Para executeQueries precisamos da conta com permissão Build no
+    // dataset, que é a dona do workspace — vive em Group.accountId.
+    const group: any = await this.groupModel.findOne({ groupIdPB: report.groupIdPB });
+    if (!group) {
+      throw new BadRequestException(
+        `Workspace ${report.groupIdPB} não encontrado no cache local — rode POST /reports/syncronize.`,
+      );
+    }
+    if (!group.accountId) {
+      throw new BadRequestException(
+        `Workspace ${report.groupIdPB} sem conta BI associada — recadastre a Account que sincronizou este workspace.`,
+      );
     }
 
-    const accountForEmail: any = await this.accounts.getIdAccount(String(accountRef));
+    const accountForEmail: any = await this.accounts.getIdAccount(String(group.accountId));
     if (!accountForEmail?.email) {
       throw new ServiceUnavailableException('Conta BI inválida — sem email.');
     }
