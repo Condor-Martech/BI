@@ -53,7 +53,10 @@ export class GroupsController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(ROLE_TYPES.MANAGER)
   async findAll(@Param('accountId') accountId: string) {
-    await this.accountsService.getIdAccount(accountId);
+    // findAccountById NO refresca token Azure — listar workspaces es data local de Mongo,
+    // no requiere hablar con Power BI. getIdAccount rompía la pantalla de permissões cuando
+    // una cuenta tenía credenciales Azure vencidas/rotas, aunque solo se querían leer nombres.
+    await this.accountsService.findAccountById(accountId);
     const groups = await this.groupsService.findAllByAccount(accountId);
     return groups;
   };

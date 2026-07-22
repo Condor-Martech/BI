@@ -1,14 +1,12 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import Link from "next/link";
 import {
   Building2,
   ChevronDown,
   ChevronRight,
   Search,
   ShieldCheck,
-  UserPlus,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -17,7 +15,6 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   EmptyState,
-  EmptyStateActions,
   EmptyStateDescription,
   EmptyStateIcon,
   EmptyStateTitle,
@@ -27,6 +24,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { useUpdateUserReports, useUsers } from "@/lib/hooks/users";
+import { useAccounts } from "@/lib/hooks/accounts";
 import { useWorkspacesByAccount } from "@/lib/hooks/groups";
 import { type UserListItem } from "@/lib/api/endpoints/users";
 import { type Group } from "@/lib/api/endpoints/groups";
@@ -40,25 +38,9 @@ function userId(u: UserListItem): string | undefined {
   return u._id ?? u.id;
 }
 
-function userAccountRefs(u: UserListItem): AccountRef[] {
-  const acc = u.accountID;
-  if (!Array.isArray(acc)) return [];
-  const refs: AccountRef[] = [];
-  for (const item of acc) {
-    if (typeof item === "string") {
-      refs.push({ id: item, name: item });
-    } else if (item && typeof item === "object" && "_id" in item && item._id) {
-      refs.push({
-        id: item._id,
-        name: (item as { nameAccount?: string }).nameAccount ?? item._id,
-      });
-    }
-  }
-  return refs;
-}
-
 export default function PermissoesPage() {
   const { data: users = [], isPending: usersPending, error: usersError } = useUsers();
+  const { data: accounts = [], isPending: accountsPending, error: accountsError } = useAccounts();
   const update = useUpdateUserReports();
 
   const [search, setSearch] = useState("");
@@ -102,7 +84,14 @@ export default function PermissoesPage() {
     setSelectedReports(new Set(selectedUser.reportsByPB ?? []));
   }, [selectedUser]);
 
-  const accountRefs = selectedUser ? userAccountRefs(selectedUser) : [];
+  const accountRefs: AccountRef[] = useMemo(
+    () =>
+      accounts.map((a) => ({
+        id: a._id,
+        name: a.nameAccount || a.email || a._id,
+      })),
+    [accounts],
+  );
 
   function toggleReport(reportIdPB: string) {
     setSelectedReports((prev) => {
@@ -241,25 +230,28 @@ export default function PermissoesPage() {
                 </EmptyStateDescription>
               </EmptyState>
             </div>
+          ) : accountsError ? (
+            <div className="flex flex-1 items-center justify-center p-6">
+              <p className="text-xs text-destructive">
+                {(accountsError as Error).message ?? "Erro ao carregar contas BI."}
+              </p>
+            </div>
+          ) : accountsPending ? (
+            <div className="space-y-3 p-3">
+              {Array.from({ length: 3 }).map((_, i) => (
+                <Skeleton key={i} className="h-24 w-full" />
+              ))}
+            </div>
           ) : accountRefs.length === 0 ? (
             <div className="flex flex-1 items-center justify-center p-6">
               <EmptyState>
                 <EmptyStateIcon>
-                  <Building2 />
+                  <ShieldCheck />
                 </EmptyStateIcon>
-                <EmptyStateTitle>Sem conta BI vinculada</EmptyStateTitle>
+                <EmptyStateTitle>Sem contas BI cadastradas</EmptyStateTitle>
                 <EmptyStateDescription>
-                  {selectedUser.name ?? "Este usuário"} não possui uma conta BI atribuída.
-                  Vincule uma conta antes de atribuir relatórios.
+                  Cadastre uma conta BI antes de atribuir relatórios.
                 </EmptyStateDescription>
-                <EmptyStateActions>
-                  <Button asChild size="sm" className="gap-1.5">
-                    <Link href="/users">
-                      <UserPlus className="size-3.5" />
-                      Ir para Usuários
-                    </Link>
-                  </Button>
-                </EmptyStateActions>
               </EmptyState>
             </div>
           ) : (
