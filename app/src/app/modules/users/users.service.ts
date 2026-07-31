@@ -10,6 +10,7 @@ import { LoginLogService } from './../login-log/login-log.service';
 import { Report, ReportDocument } from '../reports/report.entity';
 import { Group, GroupsDocument } from '../groups/group.entity';
 import { Authenticator } from '../../core/utils/authenticator';
+import { isSuperAdminEmail } from '../../core/auth/super-admin.util';
 import { AccountsService } from '../accounts/accounts.service';
 import { HashManager } from '../../core/utils/hash.manager';
 import { Model, Error as MongooseError } from 'mongoose';
@@ -529,8 +530,7 @@ export class UsersService {
     exp: number;
     target: { email: string; name: string; role: string };
   }> {
-    const superAdmin = (process.env.SUPER_ADMIN_EMAIL ?? '').toLowerCase().trim();
-    if (superAdmin && targetEmail.toLowerCase().trim() === superAdmin) {
+    if (isSuperAdminEmail(targetEmail)) {
       throw new ForbiddenException('Não é possível impersonar o super admin');
     }
     const target = await this.userModel.findOne({ email: targetEmail });
@@ -576,8 +576,7 @@ export class UsersService {
   }
 
   async allowlistRemove(email: string): Promise<void> {
-    const superAdmin = (process.env.SUPER_ADMIN_EMAIL ?? '').toLowerCase().trim();
-    if (email.toLowerCase().trim() === superAdmin) {
+    if (isSuperAdminEmail(email)) {
       throw new BadRequestException('Não é possível remover o super admin da allowlist');
     }
     const user = await this.userModel.findOne({ email });
