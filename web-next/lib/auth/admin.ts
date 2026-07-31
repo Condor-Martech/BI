@@ -4,14 +4,26 @@ import { apiServer } from "@/lib/api/server";
 import { getSession } from "@/lib/auth/session";
 
 /**
- * Pure, synchronous check: is this email the configured super-admin?
- * Safe to call from anywhere; but SUPER_ADMIN_EMAIL is only read from the
- * server env (do NOT prefix with NEXT_PUBLIC_ — it must not leak to the client).
+ * Reads SUPER_ADMIN_EMAILS (comma-separated) with fallback to legacy
+ * singular SUPER_ADMIN_EMAIL. Server env only — never expose to client.
  */
+function getSuperAdminEmails(): Set<string> {
+  const plural = process.env.SUPER_ADMIN_EMAILS ?? "";
+  const singular = process.env.SUPER_ADMIN_EMAIL ?? "";
+  const raw = plural.trim() !== "" ? plural : singular;
+  return new Set(
+    raw
+      .split(",")
+      .map((e) => e.toLowerCase().trim())
+      .filter((e) => e.length > 0),
+  );
+}
+
 export function isSuperAdmin(email: string | undefined): boolean {
-  const configured = (process.env.SUPER_ADMIN_EMAIL ?? "").toLowerCase().trim();
-  if (!configured || !email) return false;
-  return email.toLowerCase().trim() === configured;
+  if (!email) return false;
+  const configured = getSuperAdminEmails();
+  if (configured.size === 0) return false;
+  return configured.has(email.toLowerCase().trim());
 }
 
 /**

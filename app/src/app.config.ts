@@ -33,7 +33,6 @@ const REQUIRED_ENV_VARS = [
   // Basic-auth obrigatório no Bull Board (/admin/queues).
   "BULL_BOARD_USER",
   "BULL_BOARD_PASS",
-  "SUPER_ADMIN_EMAIL",
 ];
 
 function validateEnv(config: Record<string, unknown>): Record<string, unknown> {
@@ -41,6 +40,11 @@ function validateEnv(config: Record<string, unknown>): Record<string, unknown> {
   if (missing.length > 0) {
     throw new Error(
       `Variáveis de ambiente obrigatórias ausentes: ${missing.join(", ")}`
+    );
+  }
+  if (!config["SUPER_ADMIN_EMAILS"] && !config["SUPER_ADMIN_EMAIL"]) {
+    throw new Error(
+      "Variável de ambiente obrigatória ausente: SUPER_ADMIN_EMAILS (lista separada por vírgula) ou SUPER_ADMIN_EMAIL (legado, único email)"
     );
   }
   return config;
