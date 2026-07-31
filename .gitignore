@@ -115,3 +115,6 @@ Desktop.ini
 .yarn/build-state.yml
 .yarn/install-state.gz
 .pnp.*
+
+# Local mongo backups (produced by app/scripts/prod-mongo-run.sh)
+backup-users-*.archive

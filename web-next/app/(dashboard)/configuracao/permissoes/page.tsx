@@ -129,7 +129,16 @@ export default function PermissoesPage() {
     update.mutate(
       { userId: id, reportIdPB: Array.from(selectedReports) },
       {
-        onSuccess: () => toast.success("Permissões atualizadas."),
+        onSuccess: (data) => {
+          const skippedCount = data?.skipped?.length ?? 0;
+          if (skippedCount > 0) {
+            toast.success(
+              `Permissões atualizadas. ${skippedCount} relatório(s) ignorado(s) por não existirem mais.`,
+            );
+          } else {
+            toast.success("Permissões atualizadas.");
+          }
+        },
         onError: (err) =>
           toast.error((err as Error).message ?? "Não foi possível atualizar."),
       },
