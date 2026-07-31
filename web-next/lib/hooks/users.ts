@@ -90,15 +90,28 @@ export function useChangeUserAccount() {
 /**
  * PATCH /api/users/:userId/reports — MANAGER only.
  * Body: `{ reportIdPB: string[] }`. Backend derives `groupIdPB` from the reports automatically.
+ * Response: `{ user, saved, skipped }` — skipped são reportIdPB órfãos ignorados silenciosamente.
  */
+export interface UpdateUserReportsResult {
+  user?: UserListItem;
+  saved: string[];
+  skipped: string[];
+}
+
 export function useUpdateUserReports() {
   const qc = useQueryClient();
-  return useMutation({
-    mutationFn: ({ userId, reportIdPB }: { userId: string; reportIdPB: string[] }) =>
-      apiClient(`/api/users/${encodeURIComponent(userId)}/reports`, {
-        method: "PATCH",
-        body: { reportIdPB },
-      }),
+  return useMutation<
+    UpdateUserReportsResult,
+    Error,
+    { userId: string; reportIdPB: string[] }
+  >({
+    mutationFn: async ({ userId, reportIdPB }) => {
+      const data = await apiClient(
+        `/api/users/${encodeURIComponent(userId)}/reports`,
+        { method: "PATCH", body: { reportIdPB } },
+      );
+      return data as UpdateUserReportsResult;
+    },
     onSuccess: () => qc.invalidateQueries({ queryKey: usersKeys.all }),
   });
 }

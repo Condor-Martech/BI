@@ -256,10 +256,16 @@ export class UsersController {
   @ApiBearerAuth()
   @ApiOperation({
     summary: 'Atualizar relatórios do usuário',
-    description: 'Substitui a lista de relatórios (reportsByPB) e grupos (groupIdPB) vinculados ao usuário. Os grupos são derivados automaticamente dos relatórios informados.',
+    description:
+      'Substitui a lista de relatórios (reportsByPB) e grupos (groupIdPB) vinculados ao usuário. ' +
+      'Os grupos são derivados automaticamente dos relatórios informados. ' +
+      'Relatórios que não existem mais na coleção reports são ignorados silenciosamente e listados em skipped[], ' +
+      'evitando bloquear o save inteiro por causa de referências órfãs.',
   })
   @ApiParam({ name: 'userId', description: 'ID MongoDB do usuário', example: '6685a57d6dddeaa56c4a5f15' })
-  @ApiOkResponse({ description: 'Relatórios do usuário atualizados com sucesso.' })
+  @ApiOkResponse({
+    description: 'Retorna { user, saved, skipped }. saved = reportIdPB persistidos; skipped = órfãos ignorados.',
+  })
   @ApiNotFound('Usuário não encontrado.')
   @ApiCommonResponses()
   @UseGuards(JwtAuthGuard, RolesGuard)
@@ -267,8 +273,7 @@ export class UsersController {
   async updateGroupAndReport(@Param('userId') userId: string, @Body() updateUserDto: UpdateUserDto) {
     const groupsId = await this.report.filterGroups(updateUserDto.reportIdPB);
     updateUserDto.groupIdPB = groupsId;
-    const update = await this.usersService.updateUserReports(userId, updateUserDto.reportIdPB, updateUserDto.groupIdPB);
-    return update;
+    return this.usersService.updateUserReports(userId, updateUserDto.reportIdPB, updateUserDto.groupIdPB);
   }
 
   @Post('set-password')

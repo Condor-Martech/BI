@@ -466,31 +466,49 @@ export class UsersService {
 
     return this.findOne(userId);
   };
-  async updateUserReports(userId: string, reportIds: string[], groupIds: string[]): Promise<User> {
+  async updateUserReports(
+    userId: string,
+    reportIds: string[],
+    groupIds: string[],
+  ): Promise<{ user: User; saved: string[]; skipped: string[] }> {
     try {
-      const validReports = await this.reportModel.find({ reportIdPB: { $in: reportIds } });
-      if (validReports.length !== reportIds.length) {
-        throw new NotFoundException(`One or more ReportIDs not found`);
+      const requested = Array.from(new Set(reportIds ?? []));
+      const validReports = await this.reportModel
+        .find({ reportIdPB: { $in: requested } }, { reportIdPB: 1 })
+        .lean();
+      const validSet = new Set(validReports.map((r: any) => r.reportIdPB));
+      const saved = requested.filter((id) => validSet.has(id));
+      const skipped = requested.filter((id) => !validSet.has(id));
+
+      if (skipped.length > 0) {
+        // Referências órfãs em user.reportsByPB (report existiu antes mas foi removido do
+        // Power BI ou nunca foi sincronizado nesta base). Filtradas silenciosamente para
+        // não bloquear o save inteiro — o controller devolve a lista de skipped ao cliente.
+        console.warn(
+          `[updateUserReports] user=${userId} ignorados ${skipped.length} reportIdPB órfãos:`,
+          skipped,
+        );
       }
 
       const user = await this.userModel.findByIdAndUpdate(
         userId,
         {
           groupByPB: groupIds,
-          reportsByPB: reportIds,
+          reportsByPB: saved,
         },
-        {
-          new: true,
-        }
+        { new: true },
       );
 
       if (!user) {
         throw new NotFoundException(`User with ID ${userId} not found`);
       }
-      return user;
+      return { user, saved, skipped };
     } catch (error) {
       if (error instanceof MongooseError.CastError) {
         throw new BadRequestException(`Invalid ID format: ${error.message}`);
+      }
+      if (error instanceof NotFoundException) {
+        throw error;
       }
       throw new InternalServerErrorException(error.message);
     }
