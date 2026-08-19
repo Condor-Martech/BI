@@ -1,4 +1,4 @@
-import { HttpException, HttpStatus, Injectable } from '@nestjs/common';
+import { HttpException, HttpStatus, Injectable, Logger } from '@nestjs/common';
 import { LoginDocument, LoginLog } from './login-log.entity';
 import { User, UserDocument } from '../users/user.entity';
 import { InjectModel } from '@nestjs/mongoose';
@@ -8,6 +8,8 @@ import { Model } from 'mongoose';
 @Injectable()
 export class LoginLogService {
 
+  private readonly logger = new Logger(LoginLogService.name);
+
   constructor(
     @InjectModel(LoginLog.name) private loginModel: Model<LoginDocument>,
     @InjectModel(User.name) private userModel: Model<UserDocument>) { }
@@ -15,10 +17,15 @@ export class LoginLogService {
   async registerLoginLog(userId: string): Promise<void> {
     const loginTime = moment().tz('America/Sao_Paulo').toDate();
     const newLog = new this.loginModel({ userId, loginTime });
-    await Promise.all([
-      newLog.save(),
-      this.userModel.findByIdAndUpdate(userId, { lastLogin: loginTime }).exec(),
-    ]);
+    await newLog.save();
+    try {
+      await this.userModel.findByIdAndUpdate(userId, { lastLogin: loginTime }).exec();
+    } catch (err) {
+      this.logger.error(
+        `Falha ao atualizar User.lastLogin para userId=${userId} apos registrar loginlog. O login prosseguira; o cache lastLogin pode estar desatualizado.`,
+        err instanceof Error ? err.stack : String(err),
+      );
+    }
   }
 
   async findAll() {
