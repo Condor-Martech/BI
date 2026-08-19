@@ -5,7 +5,7 @@ import { Roles } from '../../core/auth/roles-auth.decorator';
 import { JwtAuthGuard } from '../../core/auth/auth.guard';
 import { RolesGuard } from '../../core/auth/roles.guard';
 import { ROLE_TYPES } from '../users/dto/create-user.dto';
-import { LoginLogsResponseDto } from './login-log.dto';
+import { LoginLogsResponseDto, LoginLogUserSummaryDto } from './login-log.dto';
 import { LoginLogService } from './login-log.service';
 import { Request } from 'express';
 
@@ -29,6 +29,21 @@ export class LoginLogController {
   @Roles(ROLE_TYPES.MANAGER)
   async findAll(@Req() req: Request) {
     return await this.loginLogService.findAll();
+  }
+
+  @Get('resumo-usuarios')
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Resumo de logins por usuário',
+    description:
+      'Retorna UMA linha por usuário cadastrado com contagem de logins (accesos) e último acesso (ultimoAcceso). Inclui usuários que nunca logaram (accesos: 0, ultimoAcceso: null). Restrito a MANAGER.',
+  })
+  @ApiOkResponse({ description: 'Resumo por usuário retornado com sucesso.', type: [LoginLogUserSummaryDto] })
+  @ApiCommonResponses()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(ROLE_TYPES.MANAGER)
+  async findUsersSummary() {
+    return await this.loginLogService.findUsersSummary();
   }
 
   @Get(':id')

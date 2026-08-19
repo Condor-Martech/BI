@@ -7,23 +7,20 @@ import { ChevronRight } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { DataTable } from "@/components/patterns/data-table/data-table";
 import { roleLabel } from "@/lib/auth/roles";
-import {
-  aggregateByUser,
-  type AggregatedUser,
-  type LoginLogRow,
-} from "./types";
+import { type AggregatedUser } from "./types";
 
 interface ByUserTableProps {
-  rows: LoginLogRow[];
+  /** Já pré-agregado pelo backend (`/login-log/resumo-usuarios`). */
+  data: AggregatedUser[];
   loading?: boolean;
   emptyState?: string;
   onSelectUser: (userKey: string) => void;
 }
 
-export function ByUserTable({ rows, loading, emptyState, onSelectUser }: ByUserTableProps) {
-  const data = useMemo<AggregatedUser[]>(
-    () => aggregateByUser(rows).sort((a, b) => b.lastAccessMs - a.lastAccessMs),
-    [rows],
+export function ByUserTable({ data, loading, emptyState, onSelectUser }: ByUserTableProps) {
+  const sorted = useMemo<AggregatedUser[]>(
+    () => [...data].sort((a, b) => b.lastAccessMs - a.lastAccessMs),
+    [data],
   );
 
   const columns = useMemo<ColumnDef<AggregatedUser>[]>(
@@ -68,9 +65,11 @@ export function ByUserTable({ rows, loading, emptyState, onSelectUser }: ByUserT
         cell: ({ row }) => {
           const r = row.original;
           const label =
-            r.lastAccessMs > 0
-              ? new Date(r.lastAccessMs).toLocaleString("pt-BR")
-              : r.lastAccessRaw;
+            r.count === 0
+              ? "Nunca"
+              : r.lastAccessMs > 0
+                ? new Date(r.lastAccessMs).toLocaleString("pt-BR")
+                : r.lastAccessRaw || "—";
           return <span className="font-mono text-xs text-muted-foreground">{label}</span>;
         },
       },
@@ -86,7 +85,7 @@ export function ByUserTable({ rows, loading, emptyState, onSelectUser }: ByUserT
   return (
     <DataTable
       columns={columns}
-      data={data}
+      data={sorted}
       loading={loading}
       density="cozy"
       pageSize={25}
