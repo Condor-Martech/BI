@@ -15,24 +15,58 @@ import {
 } from "@/components/ui/select";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { ROLES } from "@/lib/api/endpoints/users";
-import { useLoginLogs } from "@/lib/hooks/login-log";
+import { useLoginLogs, useLoginLogsUsersSummary } from "@/lib/hooks/login-log";
 import { roleLabel } from "@/lib/auth/roles";
 
 import { ByDateTable } from "./_components/by-date-table";
 import { ByUserTable } from "./_components/by-user-table";
-import { toRow, type LoginLogRow } from "./_components/types";
+import {
+  summaryToAggregated,
+  toRow,
+  type AggregatedUser,
+  type LoginLogRow,
+} from "./_components/types";
 import { UserHistorySheet } from "./_components/user-history-sheet";
 
 type RoleFilter = "all" | (typeof ROLES)[number];
 type View = "by-user" | "by-date";
 
 export default function LoginLogPage() {
-  const { data: logs = [], isPending, error } = useLoginLogs();
+  // Resumo por usuário (backend aggregation) — inclui usuários sem logins.
+  // Fonte primária da tabela "Por usuário".
+  const {
+    data: summary = [],
+    isPending: summaryPending,
+    error: summaryError,
+  } = useLoginLogsUsersSummary();
+
+  // Registros brutos — necessários para "Por data" e para o histórico do sheet.
+  // Só ativamos quando o usuário mudar para a view "by-date" ou abrir um usuário.
+  const [view, setView] = useState<View>("by-user");
+  const [selectedUserKey, setSelectedUserKey] = useState<string | null>(null);
+  const rawEnabled = view === "by-date" || selectedUserKey !== null;
+  const {
+    data: logs = [],
+    isPending: rawPending,
+    error: rawError,
+  } = useLoginLogs({ enabled: rawEnabled });
 
   const [search, setSearch] = useState("");
   const [roleFilter, setRoleFilter] = useState<RoleFilter>("all");
-  const [view, setView] = useState<View>("by-user");
-  const [selectedUserKey, setSelectedUserKey] = useState<string | null>(null);
+
+  const aggregated = useMemo<AggregatedUser[]>(() => {
+    const mapped = summary.map(summaryToAggregated);
+    const q = search.trim().toLowerCase();
+    return mapped.filter((r) => {
+      if (roleFilter !== "all" && r.role !== roleFilter) return false;
+      if (!q) return true;
+      return (
+        r.name.toLowerCase().includes(q) ||
+        r.email.toLowerCase().includes(q) ||
+        r.role.toLowerCase().includes(q)
+      );
+    });
+  }, [summary, search, roleFilter]);
 
   const rows = useMemo<LoginLogRow[]>(() => {
     const mapped = logs.map(toRow);
@@ -48,6 +82,8 @@ export default function LoginLogPage() {
     });
   }, [logs, search, roleFilter]);
 
+  const error = summaryError ?? (rawEnabled ? rawError : null);
+
   return (
     <div className="mx-auto max-w-6xl space-y-6 p-6">
       <header className="flex items-center justify-between">
@@ -56,7 +92,7 @@ export default function LoginLogPage() {
           <h1 className="text-2xl font-semibold tracking-tight">Auditoria de logins</h1>
         </div>
         <Badge variant="secondary" className="font-mono">
-          {logs.length} registros
+          {summary.length} {summary.length === 1 ? "usuário" : "usuários"}
         </Badge>
       </header>
       <p className="text-sm text-muted-foreground">
@@ -120,19 +156,19 @@ export default function LoginLogPage() {
         </Card>
       ) : view === "by-user" ? (
         <ByUserTable
-          rows={rows}
-          loading={isPending}
+          data={aggregated}
+          loading={summaryPending}
           onSelectUser={setSelectedUserKey}
           emptyState={
-            logs.length === 0
-              ? "Sem registros de login."
+            summary.length === 0
+              ? "Sem usuários cadastrados."
               : "Sem resultados para os filtros aplicados."
           }
         />
       ) : (
         <ByDateTable
           rows={rows}
-          loading={isPending}
+          loading={rawPending}
           emptyState={
             logs.length === 0
               ? "Sem registros de login."

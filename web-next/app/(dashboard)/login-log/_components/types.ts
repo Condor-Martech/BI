@@ -1,4 +1,7 @@
-import type { LoginLog } from "@/lib/api/endpoints/login-log";
+import type {
+  LoginLog,
+  LoginLogUserSummary,
+} from "@/lib/api/endpoints/login-log";
 
 export interface LoginLogRow {
   id: string;
@@ -58,6 +61,34 @@ export function toRow(log: LoginLog): LoginLogRow {
     loginTimeRaw: log.loginTime,
     loginTimeMs: parseLegacyDate(log.loginTime),
     isDeletedUser: true,
+  };
+}
+
+/**
+ * Adapta uma linha pré-agregada vinda de `/login-log/resumo-usuarios` para o
+ * mesmo shape (`AggregatedUser`) consumido pela tabela "Por usuário".
+ *
+ * O endpoint retorna UMA linha por usuário cadastrado, inclusive quem nunca
+ * logou (`accesos: 0`, `ultimoAcceso: null`). Como o backend não expõe o
+ * primeiro acesso, `firstAccessMs` fica 0 — a UI só usa esse campo no sheet
+ * de histórico, que consome os registros brutos separadamente.
+ */
+export function summaryToAggregated(s: LoginLogUserSummary): AggregatedUser {
+  const rawLast =
+    s.ultimoAcceso instanceof Date
+      ? s.ultimoAcceso.toISOString()
+      : s.ultimoAcceso ?? "";
+  const lastAccessMs = rawLast ? parseLegacyDate(rawLast) : 0;
+  return {
+    key: s._id,
+    name: s.name ?? "—",
+    email: s.email ?? "—",
+    role: s.role ?? "—",
+    count: s.accesos,
+    lastAccessMs,
+    lastAccessRaw: rawLast,
+    firstAccessMs: 0,
+    isDeleted: false,
   };
 }
 

@@ -49,6 +49,59 @@ export class LoginLogService {
 
   }
 
+  /**
+   * Retorna um resumo por usuário para a tela de Auditoria de logins.
+   *
+   * Faz aggregation sobre a coleção `users`, com $lookup para `loginlogs`,
+   * retornando UMA linha por usuário — inclusive usuários que nunca logaram
+   * (nesse caso `accesos: 0` e `ultimoAcceso: null`).
+   *
+   * Observação: `LoginLog.userId` é um ARRAY de ObjectId (definido assim no schema),
+   * então o lookup usa `$in` no pipeline em vez de `localField/foreignField`.
+   */
+  async findUsersSummary() {
+    const loginLogsCollection = this.loginModel.collection.name;
+    const result = await this.userModel.aggregate([
+      {
+        $lookup: {
+          from: loginLogsCollection,
+          let: { userId: '$_id' },
+          pipeline: [
+            // `loginlogs.userId` é declarado como array de ObjectId no schema; diagnóstico em produção confirmou 100% forma array. O `$ifNull` protege contra documento raro sem o campo.
+            { $match: { $expr: { $in: ['$$userId', { $ifNull: ['$userId', []] }] } } },
+            { $project: { loginTime: 1 } },
+          ],
+          as: 'logins',
+        },
+      },
+      {
+        $addFields: {
+          accesos: { $size: '$logins' },
+          ultimoAcceso: {
+            $cond: [
+              { $gt: [{ $size: '$logins' }, 0] },
+              { $max: '$logins.loginTime' },
+              null,
+            ],
+          },
+        },
+      },
+      {
+        $project: {
+          _id: 1,
+          name: 1,
+          email: 1,
+          role: 1,
+          accesos: 1,
+          ultimoAcceso: 1,
+        },
+      },
+      { $sort: { ultimoAcceso: -1, name: 1 } },
+    ]);
+
+    return result;
+  }
+
   async findOne(userId: string) {
     const result = await this.loginModel.findOne({ userId })
       .populate({
