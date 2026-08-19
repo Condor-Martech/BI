@@ -17,6 +17,11 @@ export const reportListItemSchema = z
     embedUrl: z.string().optional(),
     groupIdPB: z.string().optional(),
     groupByPB: z.string().optional(),
+    // Soft-hide (MANAGER-only feature). Legacy returns `hiddenByAdmin: false`
+    // for non-hidden reports; `hiddenAt`/`hiddenBy` are `null` in that case.
+    hiddenByAdmin: z.boolean().optional(),
+    hiddenAt: z.union([z.string(), z.date()]).nullable().optional(),
+    hiddenBy: z.string().nullable().optional(),
   })
   .passthrough();
 
@@ -89,5 +94,8 @@ export type SyncEnqueueJob = SyncEnqueueResponse["jobs"][number];
 export const reportsKeys = {
   all: ["reports"] as const,
   me: () => [...reportsKeys.all, "me"] as const,
+  /** Workspace-scoped listing (`/me/reports?pbWorkspaceId=X`). */
+  workspace: (pbWorkspaceId: string, includeHidden = false) =>
+    [...reportsKeys.all, "workspace", pbWorkspaceId, { includeHidden }] as const,
   detail: (reportIdPB: string) => [...reportsKeys.all, "detail", reportIdPB] as const,
 } as const;

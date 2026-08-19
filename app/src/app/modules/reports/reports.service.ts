@@ -151,13 +151,17 @@ export class ReportsService {
     }
   };
 
-  async findAll(): Promise<{ reports: Report[]; count: number }> {
+  async findAll(includeHidden = false): Promise<{ reports: Report[]; count: number }> {
     return this.cache.wrap(
-      CacheKeys.reportsAll(),
+      CacheKeys.reportsAll(includeHidden),
       async () => {
         try {
-          const reports = await this.reportModel.find();
-          const count = await this.reportModel.count()
+          // Por padrão excluímos relatórios ocultos (soft-hide via MANAGER).
+          // O consumer do sync e o /reports/all quando MANAGER pede explicitamente
+          // podem passar includeHidden=true.
+          const filter = includeHidden ? {} : { hiddenByAdmin: { $ne: true } };
+          const reports = await this.reportModel.find(filter);
+          const count = await this.reportModel.countDocuments(filter);
           return { reports, count };
 
         } catch (error) {
@@ -172,7 +176,12 @@ export class ReportsService {
       return [];
     }
     try {
-      return await this.reportModel.find({ reportIdPB: { $in: reportIds } });
+      // /reports/me nunca deve retornar ocultos, mesmo para MANAGER — a
+      // listagem para o usuário final é sempre "limpa".
+      return await this.reportModel.find({
+        reportIdPB: { $in: reportIds },
+        hiddenByAdmin: { $ne: true },
+      });
     } catch (error) {
       throw new InternalServerErrorException(error.message);
     }
@@ -324,6 +333,146 @@ export class ReportsService {
       }
       throw new InternalServerErrorException(`Unexpected error: ${error.message}`);
 
+    }
+  }
+
+  /**
+   * Soft-hide: marca o relatório como oculto. NÃO apaga do Power BI nem do Mongo —
+   * apenas o esconde das listagens padrão. `findOne(reportIdPB, email)` continua
+   * servindo o embed direto (hide é UX cleanup, não access control).
+   */
+  async hide(id: string, userEmail: string): Promise<Report> {
+    try {
+      const updated = await this.reportModel.findByIdAndUpdate(
+        id,
+        {
+          $set: {
+            hiddenByAdmin: true,
+            hiddenAt: new Date(),
+            hiddenBy: userEmail,
+          },
+        },
+        { new: true },
+      );
+      if (!updated) {
+        throw new NotFoundException(`Relatório com ID ${id} não encontrado.`);
+      }
+      await this.cache.delByPrefix(CACHE_NS.REPORTS);
+      await this.cache.delByPrefix(CACHE_NS.GROUPS);
+      return updated;
+    } catch (error) {
+      if (error instanceof HttpException) throw error;
+      if (error instanceof MongooseError.CastError) {
+        throw new BadRequestException(`Invalid ID format: ${error.message}`);
+      }
+      throw new InternalServerErrorException(`Unexpected error: ${error.message}`);
+    }
+  }
+
+  /**
+   * Restaura um relatório previamente ocultado. Idempotente: se já estava visível,
+   * apenas confirma o estado (não lança).
+   */
+  async unhide(id: string): Promise<Report> {
+    try {
+      const updated = await this.reportModel.findByIdAndUpdate(
+        id,
+        {
+          $set: {
+            hiddenByAdmin: false,
+            hiddenAt: null,
+            hiddenBy: null,
+          },
+        },
+        { new: true },
+      );
+      if (!updated) {
+        throw new NotFoundException(`Relatório com ID ${id} não encontrado.`);
+      }
+      await this.cache.delByPrefix(CACHE_NS.REPORTS);
+      await this.cache.delByPrefix(CACHE_NS.GROUPS);
+      return updated;
+    } catch (error) {
+      if (error instanceof HttpException) throw error;
+      if (error instanceof MongooseError.CastError) {
+        throw new BadRequestException(`Invalid ID format: ${error.message}`);
+      }
+      throw new InternalServerErrorException(`Unexpected error: ${error.message}`);
+    }
+  }
+
+  /**
+   * Devolve os `reportIdPB` marcados como ocultos para uma conta — usado pelo
+   * sync antes de fazer deleteMany, para poder reaplicar o flag no repopulamento.
+   */
+  async getHiddenReportIds(accountID: string): Promise<string[]> {
+    try {
+      const docs = await this.reportModel
+        .find({ accountID, hiddenByAdmin: true })
+        .select('reportIdPB')
+        .lean();
+      return docs.map((d: any) => d.reportIdPB).filter(Boolean);
+    } catch (error) {
+      throw new InternalServerErrorException(error.message);
+    }
+  }
+
+  /**
+   * Snapshot completo dos relatórios ocultos de uma conta (reportIdPB + hiddenBy +
+   * hiddenAt). Chamado ANTES do deleteMany do sync para preservar a autoria
+   * original — do contrário reaplicaríamos com `hiddenBy = 'system-sync'` e
+   * perderíamos o histórico de quem ocultou.
+   */
+  async getHiddenReportsSnapshot(
+    accountID: string,
+  ): Promise<Array<{ reportIdPB: string; hiddenBy: string | null; hiddenAt: Date | null }>> {
+    try {
+      const docs = await this.reportModel
+        .find({ accountID, hiddenByAdmin: true })
+        .select('reportIdPB hiddenBy hiddenAt')
+        .lean();
+      return docs
+        .filter((d: any) => d.reportIdPB)
+        .map((d: any) => ({
+          reportIdPB: d.reportIdPB,
+          hiddenBy: d.hiddenBy ?? null,
+          hiddenAt: d.hiddenAt ?? null,
+        }));
+    } catch (error) {
+      throw new InternalServerErrorException(error.message);
+    }
+  }
+
+  /**
+   * Reaplica o flag `hiddenByAdmin` a um conjunto de reportIdPB de uma conta.
+   * Só afeta relatórios que ainda existem após o sync (updateMany é seguro:
+   * IDs que sumiram do Power BI simplesmente não matcheiam).
+   *
+   * Chamado pelo consumer do sync depois de repopular; se a lista for vazia,
+   * o consumer nem chega a invocar (evita updateMany desnecessário).
+   */
+  async reapplyHiddenFlags(
+    accountID: string,
+    reportIdPBs: string[],
+    hiddenByEmail: string | null,
+    hiddenAt: Date | null,
+  ): Promise<void> {
+    if (!reportIdPBs || reportIdPBs.length === 0) return;
+    try {
+      await this.reportModel.updateMany(
+        { accountID, reportIdPB: { $in: reportIdPBs } },
+        {
+          $set: {
+            hiddenByAdmin: true,
+            hiddenAt: hiddenAt ?? new Date(),
+            hiddenBy: hiddenByEmail ?? 'system-sync',
+          },
+        },
+      );
+      await this.cache.delByPrefix(CACHE_NS.REPORTS);
+      await this.cache.delByPrefix(CACHE_NS.GROUPS);
+    } catch (error) {
+      throw new InternalServerErrorException(error.message);
     }
   }
 }

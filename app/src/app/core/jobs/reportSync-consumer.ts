@@ -69,6 +69,12 @@ export class ReportSyncConsumer {
     this.events.trackAccountSyncStarted({ userId: userID }, accountID);
 
     try {
+      // Soft-hide preservation: capturamos el snapshot de reports ocultos ANTES
+      // del deleteMany que hace createAllGroupByAccount. Guardamos hiddenBy +
+      // hiddenAt originales para no perder la autoría del manager que ocultó
+      // — reaplicar con "system-sync" borraría ese historial de auditoría.
+      const hiddenSnapshot = await this.reportsService.getHiddenReportsSnapshot(accountID);
+
       // Paso 1: recrear todos los workspaces de la cuenta vía Power BI.
       this.notifications.pushTransient(userID, 'sync.progress', {
         jobId,
@@ -92,9 +98,35 @@ export class ReportSyncConsumer {
       });
       await this.reportsService.getAllReportsByGroup(groups as any[], accountID);
 
-      // Conteo final (no es per-cuenta, es global — el endpoint legacy original
-      // tampoco filtraba; mantenemos la métrica de "reports en el sistema").
-      const all = await this.reportsService.findAll();
+      // Paso 4: reaplicar el flag hiddenByAdmin en los reports que sobrevivieron
+      // al sync. Agrupamos por (hiddenBy, hiddenAt) para hacer un updateMany por
+      // grupo — así preservamos la autoría original de cada report oculto sin
+      // hacer N updates. updateMany es no-op si un reportIdPB ya no existe.
+      if (hiddenSnapshot.length > 0) {
+        const groupsByAuthor = new Map<string, { hiddenBy: string | null; hiddenAt: Date | null; ids: string[] }>();
+        for (const item of hiddenSnapshot) {
+          const key = `${item.hiddenBy ?? ''}|${item.hiddenAt?.toISOString() ?? ''}`;
+          const existing = groupsByAuthor.get(key);
+          if (existing) {
+            existing.ids.push(item.reportIdPB);
+          } else {
+            groupsByAuthor.set(key, {
+              hiddenBy: item.hiddenBy,
+              hiddenAt: item.hiddenAt,
+              ids: [item.reportIdPB],
+            });
+          }
+        }
+        for (const { hiddenBy, hiddenAt, ids } of groupsByAuthor.values()) {
+          await this.reportsService.reapplyHiddenFlags(accountID, ids, hiddenBy, hiddenAt);
+        }
+      }
+
+      // Conteo final: usamos includeHidden=true porque la métrica histórica
+      // siempre reflejó "reports en el sistema" — con soft-hide activo, filtrar
+      // aquí cambiaría el número sin razón funcional (el usuario ve la lista
+      // filtrada por otras rutas). Los ocultos siguen persistidos.
+      const all = await this.reportsService.findAll(true);
       const reportsCount = (all as any)?.reports?.length ?? (Array.isArray(all) ? all.length : 0);
 
       this.notifications.pushTransient(userID, 'sync.completed', {

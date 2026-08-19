@@ -1,6 +1,6 @@
 "use client";
 
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { z } from "zod";
 
 import { apiClient } from "@/lib/api/client";
@@ -34,12 +34,56 @@ const allReportsResponseSchema = z.object({
   count: z.number().optional(),
 });
 
-export function useAllReports() {
+export function useAllReports(includeHidden = false, options?: { enabled?: boolean }) {
   return useQuery<ReportListItem[]>({
-    queryKey: [...reportsKeys.all, "all"] as const,
+    queryKey: [...reportsKeys.all, "all", { includeHidden }] as const,
     queryFn: async () => {
-      const data = await apiClient("/api/reports/all");
+      const data = await apiClient("/api/reports/all", {
+        query: includeHidden ? { includeHidden: "true" } : undefined,
+      });
       return allReportsResponseSchema.parse(data).reports;
+    },
+    enabled: options?.enabled ?? true,
+  });
+}
+
+/**
+ * PATCH /api/reports/hide/:id — soft-hide a report. MANAGER only.
+ *
+ * `id` is the Mongo `_id`, NOT the Power BI GUID. Backend responds with the
+ * updated document; we invalidate every reports query so the workspace grid,
+ * the sidebar, and the global list all reflect the change.
+ */
+export function useHideReport() {
+  const qc = useQueryClient();
+  return useMutation<ReportListItem, Error, string>({
+    mutationFn: async (id) => {
+      const data = await apiClient(`/api/reports/hide/${encodeURIComponent(id)}`, {
+        method: "PATCH",
+      });
+      return reportListItemSchema.parse(data);
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: reportsKeys.all });
+    },
+  });
+}
+
+/**
+ * PATCH /api/reports/unhide/:id — restore a soft-hidden report. MANAGER only.
+ * Idempotent. Same invalidation strategy as `useHideReport`.
+ */
+export function useUnhideReport() {
+  const qc = useQueryClient();
+  return useMutation<ReportListItem, Error, string>({
+    mutationFn: async (id) => {
+      const data = await apiClient(`/api/reports/unhide/${encodeURIComponent(id)}`, {
+        method: "PATCH",
+      });
+      return reportListItemSchema.parse(data);
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: reportsKeys.all });
     },
   });
 }
