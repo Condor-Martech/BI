@@ -32,6 +32,18 @@ export class Report {
     @Prop({ type: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Account' }] })
     accountID?: string
 
+    // Soft-hide: MANAGER pode ocultar um relatório da listagem sem apagá-lo do
+    // Power BI. O sync preserva o flag reaplicando-o após repopular a coleção.
+    // Indexado porque toda listagem "não oculto" filtra por este campo.
+    @Prop({ default: false, index: true })
+    hiddenByAdmin: boolean;
+
+    @Prop({ type: Date, default: null })
+    hiddenAt: Date | null;
+
+    @Prop({ type: String, default: null })
+    hiddenBy: string | null;
+
 
     constructor(report?: Partial<Report>) {
         this.reportIdPB = report?.reportIdPB;

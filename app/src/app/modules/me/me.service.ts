@@ -102,8 +102,14 @@ export class MeService {
     // (una sola "cuenta" sintética).
     const allowed = [...(await this.permissions.getAllowedReportIds(user))];
     if (allowed.length === 0) return [];
+    // /me/* nunca expõe reports ocultos (soft-hide via MANAGER). Se um workspace
+    // só tiver reports ocultos, ele NÃO deve aparecer no sidebar do USER — daí o
+    // filtro `hiddenByAdmin: { $ne: true }` acompanhar o distinct de groupIdPB.
     const allowedWorkspaces = (
-      await this.reportModel.distinct('groupIdPB', { reportIdPB: { $in: allowed } })
+      await this.reportModel.distinct('groupIdPB', {
+        reportIdPB: { $in: allowed },
+        hiddenByAdmin: { $ne: true },
+      })
     ).map((id) => String(id));
     if (allowedWorkspaces.length === 0) return [];
 
@@ -135,7 +141,12 @@ export class MeService {
    *   del workspace pedido. Resolución en vivo via PermissionsService.
    */
   async getReports(user: UserDocument, pbWorkspaceId: string): Promise<MeReport[]> {
-    const baseFilter: Record<string, unknown> = { groupIdPB: pbWorkspaceId };
+    // /me/reports nunca expõe reports ocultos, independente do papel do usuário.
+    // O caminho MANAGER que precisa ver ocultos é /reports/all?includeHidden=true.
+    const baseFilter: Record<string, unknown> = {
+      groupIdPB: pbWorkspaceId,
+      hiddenByAdmin: { $ne: true },
+    };
 
     if (!this.permissions.isPrivileged(user)) {
       const allowed = [...(await this.permissions.getAllowedReportIds(user))];
@@ -179,9 +190,13 @@ export class MeService {
     const privileged = user.role === ROLE_TYPES.MANAGER || user.role === ROLE_TYPES.ADMIN;
 
     if (privileged) {
+      // Contadores do /me/overview refletem o que o usuário vê nas listagens
+      // (sidebar + /me/reports) — ocultos ficam fora, alinhado com findAll(false)
+      // e com /reports/all sem includeHidden.
+      const notHidden = { hiddenByAdmin: { $ne: true } };
       const [reportIds, workspaceIds] = await Promise.all([
-        this.reportModel.distinct('reportIdPB', {}),
-        this.reportModel.distinct('groupIdPB', {}),
+        this.reportModel.distinct('reportIdPB', notHidden),
+        this.reportModel.distinct('groupIdPB', notHidden),
       ]);
       return { assignedReports: reportIds.length, workspaces: workspaceIds.length };
     }
@@ -189,6 +204,17 @@ export class MeService {
     const allowed = await this.permissions.getAllowedReportIds(user);
     const sidebar = await this.getSidebar(user);
     const workspaces = sidebar.reduce((sum, account) => sum + account.workspaces.length, 0);
-    return { assignedReports: allowed.size, workspaces };
+    // getAllowedReportIds devolve o conjunto bruto de permissões — não conhece
+    // `hiddenByAdmin`. Contar `allowed.size` inflaria o contador com reports que
+    // o USER não vê no /me/reports. Reduzimos ao subconjunto visível.
+    const allowedIds = [...allowed];
+    if (allowedIds.length === 0) {
+      return { assignedReports: 0, workspaces };
+    }
+    const visibleReportIds = await this.reportModel.distinct('reportIdPB', {
+      reportIdPB: { $in: allowedIds },
+      hiddenByAdmin: { $ne: true },
+    });
+    return { assignedReports: visibleReportIds.length, workspaces };
   }
 }

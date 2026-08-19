@@ -1,6 +1,6 @@
-import { Controller, Get, Post, Param, Delete, Inject, forwardRef, Req, UseInterceptors, UseGuards, NotFoundException, BadRequestException, HttpCode, HttpStatus } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Param, Query, Delete, Inject, forwardRef, Req, UseInterceptors, UseGuards, NotFoundException, BadRequestException, HttpCode, HttpStatus } from '@nestjs/common';
 import { SentryInterceptor } from '../../core/sentry/sentry.interceptor';
-import { ApiAcceptedResponse, ApiBearerAuth, ApiOkResponse, ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
+import { ApiAcceptedResponse, ApiBearerAuth, ApiOkResponse, ApiOperation, ApiParam, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { Roles } from '../../core/auth/roles-auth.decorator';
 import { JwtAuthGuard } from '../../core/auth/auth.guard';
 import { RolesGuard } from '../../core/auth/roles.guard';
@@ -86,14 +86,18 @@ export class ReportsController {
   @ApiBearerAuth()
   @ApiOperation({
     summary: 'Listar todos os relatórios',
-    description: 'Retorna a lista completa de relatórios Power BI persistidos no banco local, sem filtragem por usuário. Restrito ao papel MANAGER.',
+    description: 'Retorna a lista completa de relatórios Power BI persistidos no banco local, sem filtragem por usuário. Por padrão exclui relatórios ocultos (soft-hide); passe `?includeHidden=true` para incluí-los. Restrito ao papel MANAGER.',
   })
+  @ApiQuery({ name: 'includeHidden', required: false, type: Boolean, description: 'Se `true`, inclui relatórios ocultados via soft-hide. Padrão: `false`.' })
   @ApiOkResponse({ description: 'Lista de relatórios retornada com sucesso.', type: [ReportResponseDto] })
   @ApiCommonResponses()
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(ROLE_TYPES.MANAGER)
-  async findAll() {
-    return await this.reportsService.findAll();
+  async findAll(@Query('includeHidden') includeHidden?: string) {
+    // Endpoint já é MANAGER-only via @Roles, então não precisa validação extra
+    // pra ignorar o flag em caller não-privilegiado — o guard barra antes.
+    const include = includeHidden === 'true' || includeHidden === '1';
+    return await this.reportsService.findAll(include);
   };
 
   // Declarado ANTES de @Get(':reportId') — Express matcha por ordem; ':reportId' capturaria 'me'.
@@ -101,7 +105,7 @@ export class ReportsController {
   @ApiBearerAuth()
   @ApiOperation({
     summary: 'Listar os relatórios acessíveis ao usuário autenticado',
-    description: 'Retorna os relatórios que o usuário pode acessar: os atribuídos diretamente (reportsByPB) somados aos do seu grupo de usuários, resolvidos em tempo real. Para MANAGER/ADMIN retorna todos. Acessível para os papéis USER e MANAGER.',
+    description: 'Retorna os relatórios que o usuário pode acessar: os atribuídos diretamente (reportsByPB) somados aos do seu grupo de usuários, resolvidos em tempo real. Para MANAGER/ADMIN retorna todos. Relatórios ocultos (soft-hide) nunca são retornados por esta rota. Acessível para os papéis USER e MANAGER.',
   })
   @ApiOkResponse({ description: 'Lista de relatórios acessíveis retornada com sucesso.', type: [ReportResponseDto] })
   @ApiCommonResponses()
@@ -110,7 +114,8 @@ export class ReportsController {
   async findMine(@Req() req: Request) {
     const user = req.user;
     if (this.permissions.isPrivileged(user)) {
-      return (await this.reportsService.findAll()).reports;
+      // includeHidden=false explícito: /reports/me é sempre listagem "limpa".
+      return (await this.reportsService.findAll(false)).reports;
     }
     const allowedIds = [...await this.permissions.getAllowedReportIds(user)];
     return this.reportsService.findManyByReportIds(allowedIds);
@@ -149,6 +154,40 @@ export class ReportsController {
   @Roles(ROLE_TYPES.MANAGER)
   async remove(@Param('id') id: string) {
     return this.reportsService.remove(id);
+  };
+
+  @Patch('hide/:id')
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Ocultar relatório da listagem (soft-hide)',
+    description: 'Oculta um relatório da listagem sem removê-lo do Power BI. Requer permissão de manager. Registra o email do manager que ocultou e o timestamp. O sync preserva o flag reaplicando-o após repopular.',
+  })
+  @ApiParam({ name: 'id', description: 'ID MongoDB do relatório a ser ocultado', example: '6685a57d6dddeaa56c4a5f15' })
+  @ApiOkResponse({ description: 'Relatório ocultado com sucesso.', type: ReportResponseDto })
+  @ApiNotFound('Relatório não encontrado.')
+  @ApiCommonResponses()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(ROLE_TYPES.MANAGER)
+  async hide(@Req() req: Request, @Param('id') id: string) {
+    const user: any = req.user;
+    const email: string = user?.email ?? 'unknown';
+    return this.reportsService.hide(id, email);
+  };
+
+  @Patch('unhide/:id')
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Restaurar relatório ocultado',
+    description: 'Restaura um relatório previamente ocultado. Requer permissão de manager. Idempotente.',
+  })
+  @ApiParam({ name: 'id', description: 'ID MongoDB do relatório a ser restaurado', example: '6685a57d6dddeaa56c4a5f15' })
+  @ApiOkResponse({ description: 'Relatório restaurado com sucesso.', type: ReportResponseDto })
+  @ApiNotFound('Relatório não encontrado.')
+  @ApiCommonResponses()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(ROLE_TYPES.MANAGER)
+  async unhide(@Param('id') id: string) {
+    return this.reportsService.unhide(id);
   };
 }
 

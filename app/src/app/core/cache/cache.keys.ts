@@ -24,8 +24,9 @@ export const CACHE_NS = {
 export const CacheKeys = {
   /** GET /groups/report/:groupIdPB */
   groupReports: (groupIdPB: string): string => `${CACHE_NS.GROUPS}report:${groupIdPB}`,
-  /** GET /reports/all */
-  reportsAll: (): string => `${CACHE_NS.REPORTS}all`,
+  /** GET /reports/all — chave distinta por includeHidden pra não misturar listagens. */
+  reportsAll: (includeHidden = false): string =>
+    `${CACHE_NS.REPORTS}all${includeHidden ? ':withHidden' : ''}`,
   /** GET /filters/tabelas/:id */
   filterTables: (datasetId: string): string => `${CACHE_NS.FILTERS}tables:${datasetId}`,
   /** GET /filters/get/datasets */
